@@ -1,0 +1,32 @@
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>登入系統</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <h2>請輸入三位數代碼登入</h2>
+  <input type="text" id="staffCode" placeholder="輸入人員代碼：001/陳家平，002/蘇昱誠" maxlength="3" />
+  <button onclick="login()">登入</button>
+
+  <script>
+    async function login() {
+      const code = document.getElementById('staffCode').value.trim();
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ staff_code: code })
+      });
+      const result = await res.json();
+      if (result.status === 'success') {
+        localStorage.setItem('staff_code', code);
+        window.location.href = '/main';
+      } else {
+        alert(result.message || '登入失敗');
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "炫彩排汗運動T恤": {
+    "name": "炫彩排汗運動T恤",
+    "category": "衣物",
+    "price": 0,
+    "styles": {
+      "2XL": {
+        "center": 0,
+        "warehouse": 0
+      }
+    }
+  },
+  "燈塔刷毛連帽外套": {
+    "name": "燈塔刷毛連帽外套",
+    "category": "衣物",
+    "price": 0,
+    "styles": {
+      "2XL": {
+        "center": 0,
+        "warehouse": 0
+      },
+      "S": {
+        "center": 0,
+        "warehouse": 0
+      },
+      "L": {
+        "center": 0,
+        "warehouse": 0
+      }
+    }
+  }
+}
