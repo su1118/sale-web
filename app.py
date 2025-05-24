@@ -631,7 +631,10 @@ def api_logout():
     session.pop("staff_name", None)
     return jsonify({ "status": "success", "message": "已登出" })
 
+#if __name__ == "__main__":
+#    app.run(debug=True, port=5050)
 if __name__ == "__main__":
-    app.run(debug=True, port=5050)
+    port = int(os.environ.get("PORT", 5000))  # 從 Render 提供的 PORT 環境變數取得 port
+    app.run(host="0.0.0.0", port=port)
 
 
