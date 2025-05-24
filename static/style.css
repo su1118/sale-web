@@ -1,0 +1,116 @@
+
+body {
+  font-family: Arial, sans-serif;
+  background-color: #f8f9fa;
+  color: #333;
+  padding: 20px;
+}
+h1 {
+  color: #007bff;
+}
+input[type="text"] {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 20px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+.button-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 30px;
+}
+.button-group button {
+  color: white;
+  border: none;
+  padding: 10px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  flex: 1 1 120px;
+  transition: background-color 0.2s ease;
+  font-size: 20px !important;
+}
+.button-group button:hover {
+  background-color: #000000;
+  color: #fff;
+}
+.sale{
+  background-color: #1976d2;
+}
+.return{
+  background-color: #f57c00;
+}
+.gift{
+  background-color: #8e24aa;
+}
+.transfer{
+  background-color: #009688;
+}
+.restock{
+  background-color: #43a047;
+}
+.activity{
+  background-color: #ec407a;
+}
+.occupy{
+  background-color: #616161;
+}
+.download{
+  background-color: #283593;
+}
+.product {
+  background-color: #fff;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  padding: 10px 15px;
+}
+.product.衣物 {
+  border-left: 5px solid #EF476F !important;
+  border: 1px solid #EF476F;
+}
+.product.文具 {
+  border-left: 5px solid #FFD166 !important;
+  border: 1px solid #FFD166;
+}
+.product.徽章 {
+  border-left: 5px solid #118AB2 !important;
+  border: 1px solid #118AB2;
+}
+.product.背包 {
+  border-left: 5px solid #04ce98 !important;
+  border: 1px solid #04ce98;
+}
+.product.杯具 {
+  border-left: 5px solid #073B4C !important;
+  border: 1px solid #073B4C;
+}
+.product h2 {
+  margin: 0 0 5px;
+  font-size: 18px;
+}
+.product .price {
+  color: #555;
+  margin-bottom: 10px;
+}
+.inventory {
+  padding-left: 10px;
+}
+.custom-input {
+  max-width: 300px !important;
+  margin: auto;
+}
+.product-btn {
+  background-color: #4192e9;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 5px;
+  margin: 5px;
+  cursor: pointer;
+}
+.product-btn:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
