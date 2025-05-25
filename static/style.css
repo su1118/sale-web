@@ -97,8 +97,9 @@ input[type="text"] {
   padding-left: 10px;
 }
 .custom-input {
-  max-width: 300px !important;
+  max-width: 150px !important;
   margin: auto;
+  margin-top: 10px;
 }
 .product-btn {
   background-color: #4192e9;
