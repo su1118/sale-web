@@ -32,8 +32,9 @@ input[type="text"] {
   font-size: 20px !important;
 }
 .button-group button:hover {
-  background-color: #000000;
-  color: #fff;
+  background-color: black;
+  scale: 1.1;
+  color: white;
 }
 .sale{
   background-color: #1976d2;
