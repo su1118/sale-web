@@ -1,5 +1,7 @@
 let products = [];
 let saleItems = [];
+let saleIdentity = null;
+let saleChannel = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById('searchInput').addEventListener('input', () => {
@@ -29,6 +31,7 @@ function sortSizes(styles) {
 }
 
 
+//查詢
 function renderProducts(filtered) {
   const resultArea = document.getElementById('resultArea');
   resultArea.innerHTML = '';
@@ -50,741 +53,808 @@ function renderProducts(filtered) {
     resultArea.appendChild(div);
   });
 }
+async function fetchData() {
+  const res = await fetch('/api/products');
+  products = await res.json();
 
-function openModal(type) {
-  if (type === '銷售') {
-    handleSaleFlow();
-  } else if (type === '退換貨') {
-    saleItems = [];
-    handleReturnFlow();
-  } else {
-    Swal.fire('功能尚未實作', `你點擊的是：${type}`, 'info');
-  }
+  // 建立分類選單
+  const categories = [...new Set(products.map(p => p.category))];
+  const select = document.getElementById('categoryFilter');
+  categories.forEach(cat => {
+    const opt = document.createElement('option');
+    opt.value = cat;
+    opt.textContent = cat;
+    select.appendChild(opt);
+  });
+
+  filterProducts(); // 初始顯示
 }
 
+function filterProducts() {
+  const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
+  const category = document.getElementById('categoryFilter').value;
+  const filtered = products.filter(p => {
+    const matchKeyword = p.name.toLowerCase().includes(keyword);
+    const matchCategory = category === '' || p.category === category;
+    return matchKeyword && matchCategory;
+  });
+  renderProducts(filtered);
+}
+
+
+
+
+const identityOptions = {
+  校友: '校友', 在校生: '在校生', 師長: '師長', 家長: '家長', 其他: '其他'
+};
+const channelOptions = {
+  店面: '店面', 網路: '網路', 校內活動: '校內活動'
+};
+
+
+//銷售
 async function handleSaleFlow() {
-  
+  saleItems = [];
   const categories = [...new Set(products.map(p => p.category || '未分類'))];
 
-  const identityOptions = {
-    校友: '校友',
-    在校生: '在校生',
-    師長: '師長',
-    家長: '家長',
-    其他: '其他'
-  };
-  const channelOptions = {
-    店面: '店面',
-    網路: '網路',
-    校內活動: '校內活動'
-  };
-
-  const formHtml = `
-    <select id="identity" class="swal2-input">
-      <option value="">選擇身分別</option>
-      ${Object.keys(identityOptions).map(k => `<option value="${k}">${k}</option>`).join('')}
-    </select>
-    <select id="channel" class="swal2-input">
-      <option value="">選擇通路</option>
-      ${Object.keys(channelOptions).map(k => `<option value="${k}">${k}</option>`).join('')}
-    </select>
-    <select id="category" class="swal2-input">
-      <option value="">選擇大分類</option>
-      ${categories.map(c => `<option value="${c}">${c}</option>`).join('')}
-    </select>
-    <div id="productArea"></div>
-    <div id="styleArea" style="margin-top:10px;"></div>
-    <input type="number" id="qty" class="swal2-input" placeholder="輸入數量" min="1" />
+  const leftHtml = `
+    <div style="width:60%; float:left; padding-right:3%; box-sizing:border-box; text-align:center">
+      <div style="display:flex; justify-content:center; gap:10px; margin-bottom:10px">
+        <select id="identity" class="swal2-input" style="width:48%">
+          <option value="">選擇身分別</option>
+          ${Object.keys(identityOptions).map(k => `<option value="${k}">${k}</option>`).join('')}
+        </select>
+        <select id="channel" class="swal2-input" style="width:48%">
+          <option value="">選擇通路</option>
+          ${Object.keys(channelOptions).map(k => `<option value="${k}">${k}</option>`).join('')}
+        </select>
+      </div>
+      <select id="category" class="swal2-input" style="width:100%; margin-bottom:10px">
+        <option value="">選擇分類</option>
+        ${categories.map(c => `<option value="${c}">${c}</option>`).join('')}
+      </select>
+      <div id="productArea" style="display:flex; flex-wrap:wrap; justify-content:center; gap:3px; margin-bottom:10px;"></div>
+      <div id="styleArea" style="margin-bottom:10px"></div>
+      <input type="number" id="qty" class="swal2-input" placeholder="輸入數量" min="1" style="max-width: 150px" />
+      <button onclick="addSaleItem()" class="swal2-confirm swal2-styled" style="margin-top:10px; width:100%">➕ 新增商品</button>
+    </div>
   `;
 
-  await Swal.fire({
-    title: '填寫銷售資訊',
-    html: formHtml,
-    didOpen: () => {
-      const categorySelect = document.getElementById('category');
-      const productArea = document.getElementById('productArea');
-      const styleArea = document.getElementById('styleArea');
-
-      categorySelect.addEventListener('change', () => {
-        const selectedCategory = categorySelect.value;
-        const items = products.filter(p => p.category === selectedCategory);
-        productArea.innerHTML = items.map(p => {
-          let total = 0;
-          if (p.styles) {
-            total = Object.values(p.styles).reduce((sum, s) => sum + s.center + s.warehouse, 0);
-          } else {
-            total = (p.center || 0) + (p.warehouse || 0);
-          }
-          const disabled = total === 0 ? 'disabled' : '';
-          const label = total === 0 ? `${p.name}（無庫存）` : p.name;
-          return `<button class="product-btn" data-name="${p.name}" ${disabled}>${label}</button>`;
-        }).join(' ');
-
-        // 商品選擇事件
-        setTimeout(() => {
-          document.querySelectorAll('.product-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-              const itemName = btn.dataset.name;
-              const selected = items.find(p => p.name === itemName);
-              styleArea.innerHTML = '';
-
-              if (selected.styles) {
-                styleArea.innerHTML = `<label>選擇尺寸：<select id="style" class="swal2-input">` +
-  sortSizes(selected.styles).map(size => {
-    const stock = selected.styles[size];
-    const total = stock.center + stock.warehouse;
-    const disabled = total === 0 ? "disabled" : "";
-    return `<option value="${size}" ${disabled}>${size}${total === 0 ? "（無庫存）" : ""}</option>`;
-  }).join('') + `</select></label>`;
-              } else {
-                styleArea.innerHTML = `<input type="hidden" id="style" value="">`;
-              }
-
-              styleArea.dataset.selected = JSON.stringify(selected);
-
-              // 樣式按鈕事件
-              setTimeout(() => {
-                document.querySelectorAll('.style-btn').forEach(styleBtn => {
-                  styleBtn.addEventListener('click', () => {
-                    document.getElementById('style')?.remove();
-                    const hidden = document.createElement('input');
-                    hidden.type = 'hidden';
-                    hidden.id = 'style';
-                    hidden.value = styleBtn.dataset.style;
-                    styleArea.appendChild(hidden);
-                  });
-                });
-              }, 0);
-            });
-          });
-        }, 0);
-      });
-    },
-    preConfirm: () => {
-      const identity = document.getElementById('identity').value;
-      const channel = document.getElementById('channel').value;
-      const qty = parseInt(document.getElementById('qty').value);
-      const style = document.getElementById('style')?.value || '';
-      const selectedProduct = JSON.parse(document.getElementById('styleArea').dataset.selected || '{}');
-
-      if (!identity || !channel || !selectedProduct.name || !qty) {
-        Swal.showValidationMessage('請填寫所有欄位並選擇商品與數量');
-        return false;
-      }
-
-      return {
-        identity,
-        channel,
-        style,
-        qty,
-        product: selectedProduct
-      };
-    }
-  }).then(async result => {
-    if (!result.isConfirmed) return;
-    const discountRate = ['校友', '在校生', '師長'].includes(result.value.identity) ? 0.9 : 1.0;
-    const selected = result.value.product;
-    saleItems.push({
-  type: "return",
-  
-      name: selected.name,
-      code: selected.code || '無代碼',
-      category: selected.category,
-      price: selected.price,
-      style: result.value.style,
-      qty: result.value.qty,
-      subtotal: selected.price * result.value.qty * discountRate
-    });
-
-    
-    const more = await Swal.fire({
-      title: '已新增一筆商品',
-      html: '是否還要新增其他商品？',
-      showCancelButton: true,
-      confirmButtonText: '➕ 繼續新增',
-      cancelButtonText: '完成送出'
-    });
-
-    if (more.isConfirmed) {
-      handleSaleFlow();  // 再次呼叫自己新增下一筆
-    } else {
-      showSaleSummary(saleItems, result.value.identity, result.value.channel, discountRate);
-    }
-
-  });
-}
-
-function showSaleSummary(items, identity, channel, discountRate) {
-  let total = 0;
-  let html = '<ul>';
-  items.forEach(item => {
-    total += item.subtotal;
-    html += `<li>${item.name} ${item.style || ''} x ${item.qty} = $${item.subtotal.toFixed(0)}</li>`;
-  });
-  html += `</ul><hr><strong>總計：$${total.toFixed(0)}</strong>`;
+  const rightHtml = `
+    <div style="width:40%; float:right; padding-left:3%; box-sizing:border-box; border-left:1px solid #ccc; height:500px; overflow:auto">
+      <h3>即時預覽</h3>
+      <ul id="salePreviewList" style="padding-left:1em"></ul>
+      <hr>
+      <strong id="salePreviewTotal"></strong><br>
+      <button onclick="submitSaleItems()" class="swal2-confirm swal2-styled" style="margin-top:10px; width:100%">✅ 完成送出</button>
+    </div>
+  `;
 
   Swal.fire({
-    title: '確認銷售項目',
-    html: html,
-    showCancelButton: true,
-    confirmButtonText: '下一步',
-    cancelButtonText: '返回修改'
-  }).then(async result => {
-    if (result.isConfirmed) {
-      const { value: orderId } = await Swal.fire({
-          title: '輸入單號',
-          input: 'text',
-          inputPlaceholder: '請輸入此筆銷售的單號',
-          inputAttributes: {
-            autocapitalize: 'off'
-          },
-          customClass: {
-            input: 'custom-input'
-          },
-          showCancelButton: true,
-          confirmButtonText: '送出',
-          cancelButtonText: '取消'
-        });
-      if (!orderId) return;
-
-      submitSaleToBackend(items, total, identity, channel, discountRate, orderId);
-    } else {
-    saleItems = [];  // ✅ 使用者選擇返回修改時，清空暫存
+    title: '填寫銷售資料',
+    html: `<div style="display:flex; max-width:1000px">${leftHtml}${rightHtml}</div>`,
+    showConfirmButton: false,
+    width: '70%',
+    didOpen: () => {
+      setupSaleForm();
     }
-
   });
 }
 
-function submitSaleToBackend(items, total, identity, channel, discountRate, orderId) {
-  const payload = {
+function setupSaleForm() {
+  const categorySelect = document.getElementById('category');
+  const productArea = document.getElementById('productArea');
+  const styleArea = document.getElementById('styleArea');
+
+  categorySelect.addEventListener('change', () => {
+    const selectedCategory = categorySelect.value;
+    const items = products.filter(p => p.category === selectedCategory);
+    productArea.innerHTML = items.map(p => {
+      let total = p.styles ? Object.values(p.styles).reduce((s, i) => s + i.center + i.warehouse, 0) : p.center + p.warehouse;
+      const disabled = total === 0 ? 'disabled' : '';
+      const label = total === 0 ? `${p.name}（無庫存）` : p.name;
+      return `<button class="product-btn" data-name="${p.name}" ${disabled}>${label}</button>`;
+    }).join('');
+
+    setTimeout(() => {
+      document.querySelectorAll('.product-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const itemName = btn.dataset.name;
+          const selected = items.find(p => p.name === itemName);
+          styleArea.innerHTML = '';
+
+          if (selected.styles) {
+            const options = sortSizes(selected.styles).map(size => {
+              const stock = selected.styles[size];
+              const total = stock.center + stock.warehouse;
+              const disabled = total === 0 ? 'disabled' : '';
+              return `<option value="${size}" ${disabled}>${size}${total === 0 ? '（無庫存）' : ''}</option>`;
+            }).join('');
+            styleArea.innerHTML = `<select id="style" class="swal2-input">${options}</select>`;
+          } else {
+            styleArea.innerHTML = `<input type="hidden" id="style" value="">`;
+          }
+          styleArea.dataset.selected = JSON.stringify(selected);
+        });
+      });
+    }, 0);
+  });
+}
+
+function addSaleItem() {
+  const identity = document.getElementById('identity').value;
+  const channel = document.getElementById('channel').value;
+  const qty = parseInt(document.getElementById('qty').value);
+  const style = document.getElementById('style')?.value || '';
+  const selected = JSON.parse(document.getElementById('styleArea').dataset.selected || '{}');
+  if (!identity || !channel || !selected.name || !qty) {
+    Swal.showValidationMessage('請填寫所有欄位'); return;
+  }
+  const discount = ['校友', '在校生', '師長'].includes(identity) ? 0.9 : 1.0;
+  saleItems.push({
+    name: selected.name,
+    code: selected.code,
+    category: selected.category,
+    price: selected.price,
+    style,
+    qty,
+    subtotal: selected.price * qty * discount,
     identity,
     channel,
-    discount: discountRate,
-    total,
-    order_id: orderId,
-    items,
-    timestamp: new Date().toISOString()
-  };
+    discount
+  });
+  updateSalePreview();
+}
 
-  fetch("/api/sale", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
+function updateSalePreview() {
+  const list = document.getElementById('salePreviewList');
+  list.innerHTML = '';
+  let total = 0;
+  saleItems.forEach((item, idx) => {
+    total += item.subtotal;
+    const li = document.createElement('li');
+    li.innerHTML = `${item.name} ${item.style || ''} x${item.qty} = $${item.subtotal.toFixed(0)}
+      <button onclick="removeSaleItem(${idx})">❌</button>`;
+    list.appendChild(li);
+  });
+  document.getElementById('salePreviewTotal').textContent = `總計：$${total.toFixed(0)}`;
+}
+
+function removeSaleItem(index) {
+  saleItems.splice(index, 1);
+  updateSalePreview();
+}
+
+function submitSaleItems() {
+  if (!saleItems.length) return;
+  const identity = saleItems[0].identity;
+  const channel = saleItems[0].channel;
+  const discount = saleItems[0].discount;
+  const total = saleItems.reduce((sum, i) => sum + i.subtotal, 0);
+
+  Swal.fire({
+    title: '輸入單號',
+    input: 'text',
+    customClass: {
+      input: 'custom-input'
     },
-    body: JSON.stringify(payload)
-  })
+    inputPlaceholder: '請輸入單號',
+    showCancelButton: true
+  }).then(result => {
+    if (!result.isConfirmed || !result.value) return;
+    const payload = {
+      identity,
+      channel,
+      discount,
+      total,
+      order_id: result.value,
+      items: saleItems,
+      timestamp: new Date().toISOString()
+    };
+    fetch("/api/sale", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    })
     .then(res => res.json())
     .then(data => {
-      let resultText = data.result.map(r => `✅ ${r.code}${r.style ? ' [' + r.style + ']' : ''}：${r.status}`).join('<br>');
-      Swal.fire('✅ 銷售完成', resultText, 'success');
-      fetchData(); // ✅ 重新抓取最新商品資料
+      Swal.fire('✅ 銷售完成', data.message || '成功送出', 'success');
+      fetchData();
       saleItems = [];
     })
     .catch(err => {
       console.error(err);
-      Swal.fire('❌ 發送失敗', '請檢查伺服器或網路狀況', 'error');
+      Swal.fire('❌ 發送失敗', '請檢查網路', 'error');
     });
+  });
 }
 
-//退換貨
+
+//退貨
 async function handleReturnFlow() {
+  saleItems = [];
   const categories = [...new Set(products.map(p => p.category || '未分類'))];
 
-  const formHtml = `
-    <select id="mode" class="swal2-input">
-      <option value="">退貨或換貨</option>
-      <option value="return">退貨</option>
-      <option value="exchange">換貨</option>
-    </select>
-    <select id="identity" class="swal2-input">
-      <option value="">選擇身分別</option>
-      <option value="校友">校友</option>
-      <option value="在校生">在校生</option>
-      <option value="師長">師長</option>
-      <option value="家長">家長</option>
-      <option value="其他">其他</option>
-    </select>
-    <select id="channel" class="swal2-input">
-      <option value="">選擇通路</option>
-      <option value="店面">店面</option>
-      <option value="網路">網路</option>
-      <option value="校內活動">校內活動</option>
-    </select>
-    <select id="category" class="swal2-input">
-      <option value="">選擇分類</option>
-      ${categories.map(c => `<option value="${c}">${c}</option>`).join('')}
-    </select>
-    <div id="productArea"></div>
-    <div id="styleArea" style="margin-top:10px;"></div>
-    <input type="number" id="qty" class="swal2-input" placeholder="輸入數量" min="1" />
+  const leftHtml = `
+    <div style="width:60%; float:left; padding-right:3%; box-sizing:border-box; text-align:center">
+      <div style="display:flex; justify-content:center; gap:10px; margin-bottom:10px">
+        <select id="identity" class="swal2-input" style="width:48%">
+          <option value="">選擇身分別</option>
+          ${Object.keys(identityOptions).map(k => `<option value="${k}">${k}</option>`).join('')}
+        </select>
+        <select id="channel" class="swal2-input" style="width:48%">
+          <option value="">選擇通路</option>
+          ${Object.keys(channelOptions).map(k => `<option value="${k}">${k}</option>`).join('')}
+        </select>
+      </div>
+      <select id="category" class="swal2-input" style="width:100%; margin-bottom:10px">
+        <option value="">選擇分類</option>
+        ${categories.map(c => `<option value="${c}">${c}</option>`).join('')}
+      </select>
+      <div id="productArea" style="display:flex; flex-wrap:wrap; justify-content:center; gap:3px; margin-bottom:10px;"></div>
+      <div id="styleArea" style="margin-bottom:10px"></div>
+      <input type="number" id="qty" class="swal2-input" placeholder="輸入退貨數量" min="1" style="max-width:150px" />
+      <button onclick="addReturnItem()" class="swal2-confirm swal2-styled" style="margin-top:10px; width:100%">➕ 新增退貨商品</button>
+    </div>
   `;
 
-  await Swal.fire({
-    title: '填寫退換貨資料',
-    html: formHtml,
-    focusConfirm: false,
+  const rightHtml = `
+    <div style="width:40%; float:right; padding-left:3%; box-sizing:border-box; border-left:1px solid #ccc; height:500px; overflow:auto">
+      <h3>即時預覽</h3>
+      <ul id="salePreviewList" style="padding-left:1em"></ul>
+      <hr>
+      <strong id="salePreviewTotal"></strong><br>
+      <button onclick="submitReturnItems()" class="swal2-confirm swal2-styled" style="margin-top:10px; width:100%">✅ 完成送出</button>
+    </div>
+  `;
+
+  Swal.fire({
+    title: '填寫退貨資料',
+    html: `<div style="display:flex; max-width:1000px">${leftHtml}${rightHtml}</div>`,
+    showConfirmButton: false,
+    width: '70%',
     didOpen: () => {
-      const categorySelect = document.getElementById('category');
-      const productArea = document.getElementById('productArea');
-      const styleArea = document.getElementById('styleArea');
+      setupReturnForm();
+    }
+  });
+}
 
-      categorySelect.addEventListener('change', () => {
-        const selectedCategory = categorySelect.value;
-        const items = products.filter(p => p.category === selectedCategory);
-        productArea.innerHTML = items.map(p => {
-          const label = p.name;
-          return `<button class="product-btn" data-name="${p.name}">${label}</button>`;
-        }).join('');
+function setupReturnForm() {
+  const categorySelect = document.getElementById('category');
+  const productArea = document.getElementById('productArea');
+  const styleArea = document.getElementById('styleArea');
 
-        setTimeout(() => {
-          document.querySelectorAll('.product-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-              const itemName = btn.dataset.name;
-              const selected = products.find(p => p.name === itemName);
-              styleArea.innerHTML = '';
+  categorySelect.addEventListener('change', () => {
+    const selectedCategory = categorySelect.value;
+    const items = products.filter(p => p.category === selectedCategory);
+    productArea.innerHTML = items.map(p => {
+      const total = p.styles
+        ? Object.values(p.styles).reduce((s, i) => s + i.center + i.warehouse, 0)
+        : (p.center || 0) + (p.warehouse || 0);
+      const disabled = total === 0 ? 'disabled' : '';
+      const label = total === 0 ? `${p.name}（無庫存）` : p.name;
+      return `<button class="product-btn" data-name="${p.name}" ${disabled}>${label}</button>`;
+    }).join('');
 
-              if (selected.styles) {
-                styleArea.innerHTML = '<label>選擇尺寸：<select id="style" class="swal2-input">' +
-                  sortSizes(selected.styles).map(size => {
-                    return `<option value="${size}">${size}</option>`;
-                  }).join('') + '</select></label>';
-              } else {
-                styleArea.innerHTML = `<input type="hidden" id="style" value="">`;
-              }
+    setTimeout(() => {
+      document.querySelectorAll('.product-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const itemName = btn.dataset.name;
+          const selected = products.find(p => p.name === itemName);
+          styleArea.innerHTML = '';
 
-              styleArea.dataset.selected = JSON.stringify(selected);
-            });
-          });
-        }, 0);
+          if (selected.styles) {
+            const options = sortSizes(selected.styles).map(size => {
+              const stock = selected.styles[size];
+              const total = stock.center + stock.warehouse;
+              const disabled = total === 0 ? 'disabled' : '';
+              return `<option value="${size}" ${disabled}>${size}${total === 0 ? '（無庫存）' : ''}</option>`;
+            }).join('');
+            styleArea.innerHTML = `<select id="style" class="swal2-input">${options}</select>`;
+          } else {
+            styleArea.innerHTML = `<input type="hidden" id="style" value="">`;
+          }
+          styleArea.dataset.selected = JSON.stringify(selected);
+        });
       });
-    },
-    preConfirm: () => {
-      const identity = document.getElementById('identity').value;
-      const channel = document.getElementById('channel').value;
-      const qty = parseInt(document.getElementById('qty').value);
-      const style = document.getElementById('style')?.value || '';
-      const selectedProduct = JSON.parse(document.getElementById('styleArea').dataset.selected || '{}');
-      const mode = document.getElementById('mode').value;
-
-      if (!mode || !identity || !channel || !selectedProduct.name || !qty) {
-        Swal.showValidationMessage('請填寫所有欄位');
-        return false;
-      }
-
-      return {
-        mode,
-        identity,
-        channel,
-        style,
-        qty,
-        product: selectedProduct
-      };
-    }
-  }).then(async result => {
-    if (!result.isConfirmed) return;
-
-    const selected = result.value.product;
-    saleItems.push({
-      name: selected.name,
-      code: selected.code,
-      category: selected.category,
-      price: selected.price,
-      style: result.value.style,
-      qty: result.value.qty,
-      type: "return",
-      subtotal: selected.price * result.value.qty
-    });
-
-    const more = await Swal.fire({
-      title: '已加入商品',
-      text: '是否繼續新增退換貨商品？',
-      showCancelButton: true,
-      confirmButtonText: '繼續',
-      cancelButtonText: '完成'
-    });
-
-    if (more.isConfirmed) {
-      handleReturnFlow();
-    } else {
-      if (result.value.mode === 'exchange') {
-        handleExchangeFlow(saleItems, result.value.identity, result.value.channel);
-      } else {
-        showReturnSummary(saleItems, result.value.identity, result.value.channel);
-      }
-    }
+    }, 0);
   });
 }
 
-function showReturnSummary(items, identity, channel) {
+function addReturnItem() {
+  const identity = document.getElementById('identity').value;
+  const channel = document.getElementById('channel').value;
+  const qty = parseInt(document.getElementById('qty').value);
+  const style = document.getElementById('style')?.value || '';
+  const selected = JSON.parse(document.getElementById('styleArea').dataset.selected || '{}');
+  if (!identity || !channel || !selected.name || !qty) {
+    Swal.showValidationMessage('請填寫所有欄位');
+    return;
+  }
+
+  const discount = ['校友', '在校生', '師長'].includes(identity) ? 0.9 : 1.0;
+  saleItems.push({
+    name: selected.name,
+    code: selected.code,
+    category: selected.category,
+    price: selected.price,
+    style,
+    qty,
+    subtotal: selected.price * qty * discount,
+    type: 'return',
+    identity,
+    channel
+  });
+
+  updateSalePreview();
+}
+
+function updateSalePreview() {
+  const list = document.getElementById('salePreviewList');
+  list.innerHTML = '';
   let total = 0;
-  let html = '<ul>';
-  items.forEach(item => {
+  saleItems.forEach((item, idx) => {
     total += item.subtotal;
-    html += `<li>${item.name} ${item.style || ''} x ${item.qty} = -$${item.subtotal}</li>`;
+    const li = document.createElement('li');
+    li.innerHTML = `${item.name} ${item.style || ''} x${item.qty} = $${item.subtotal.toFixed(0)}
+      <button onclick="removeSaleItem(${idx})">❌</button>`;
+    list.appendChild(li);
   });
-  html += `</ul><hr><strong>應退金額：$${total}</strong>`;
-
-  Swal.fire({
-    title: '確認退貨清單',
-    html: html,
-    confirmButtonText: '下一步',
-    showCancelButton: true,
-    cancelButtonText: '返回修改'
-  }).then(result => {
-    if (result.isConfirmed) {
-      askReturnOrderId(items, total, identity, channel);
-    }
-  });
+  document.getElementById('salePreviewTotal').textContent = `總計：$${total.toFixed(0)}`;
 }
 
-
-function showExchangeSummary(oldItems, newItems, identity, channel) {
-  let oldTotal = oldItems.reduce((sum, item) => sum + item.subtotal, 0);
-  let newTotal = newItems.reduce((sum, item) => sum + item.subtotal, 0);
-  let diff = newTotal - oldTotal;
-
-  let html = `<h3>退貨商品：</h3><ul>`;
-  oldItems.forEach(item => {
-    html += `<li>${item.name} ${item.style || ''} x ${item.qty} = -$${item.subtotal}</li>`;
-  });
-  html += `</ul><h3>換貨商品：</h3><ul>`;
-  newItems.forEach(item => {
-    html += `<li>${item.name} ${item.style || ''} x ${item.qty} = +$${item.subtotal}</li>`;
-  });
-  html += `</ul><hr><strong>應補差額：$${diff}</strong>`;
-
-  Swal.fire({
-    title: '換貨差額確認',
-    html: html,
-    confirmButtonText: '下一步',
-    showCancelButton: true,
-    cancelButtonText: '返回修改'
-  }).then(result => {
-    if (result.isConfirmed) {
-      askReturnOrderIdForExchange(oldItems, newItems, identity, channel);
-    }
-  });
+function removeSaleItem(index) {
+  saleItems.splice(index, 1);
+  updateSalePreview();
 }
 
-function askReturnOrderIdForExchange(oldItems, newItems, identity, channel) {
+function submitReturnItems() {
+  if (!saleItems.length) return;
+  const identity = saleItems[0].identity;
+  const channel = saleItems[0].channel;
+
   Swal.fire({
     title: '輸入單號',
     input: 'text',
-    inputPlaceholder: '請輸入換貨單號',
-    customClass: {
-      input: 'custom-input'
-    },
-    showCancelButton: true,
-    confirmButtonText: '送出',
-    cancelButtonText: '取消'
+    inputPlaceholder: '請輸入單號',
+    customClass: { input: 'custom-input' },
+    showCancelButton: true
   }).then(result => {
     if (!result.isConfirmed || !result.value) return;
 
-    const orderId = result.value;
     const payload = {
-      order_id: orderId,
+      order_id: result.value,
       timestamp: new Date().toISOString(),
       identity,
       channel,
-      items: [...oldItems, ...newItems]  // ✅ 合併兩邊的 items
+      items: saleItems
     };
 
     fetch("/api/return", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     })
-      .then(res => res.json())
-      .then(data => {
-        Swal.fire("✅ 換貨完成", data.message || "已提交資料", "success");
-        fetchData();
-        saleItems = [];
-      })
-      .catch(err => {
-        console.error(err);
-        Swal.fire("❌ 發送失敗", "請檢查伺服器或網路", "error");
-      });
+    .then(res => res.json())
+    .then(data => {
+      Swal.fire('✅ 退貨完成', data.message || '已提交資料', 'success');
+      fetchData();
+      saleItems = [];
+    })
+    .catch(err => {
+      console.error(err);
+      Swal.fire('❌ 發送失敗', '請檢查伺服器或網路', 'error');
+    });
   });
 }
 
 
+//換貨
+let oldExchangeItems = [];
+let newExchangeItems = [];
+let exchangeIdentity = '';
+let exchangeChannel = '';
 
-function askReturnOrderId(items) {
+
+async function handleExchangeFlow() {
+  oldExchangeItems = [];
+  newExchangeItems = [];
+
+  const categories = [...new Set(products.map(p => p.category || '未分類'))];
+  const leftHtml = `
+    <div style="width:60%; float:left; padding-right:3%; box-sizing:border-box; text-align:center">
+      <div style="display:flex; justify-content:center; gap:10px; margin-bottom:10px">
+        <select id="identity" class="swal2-input" style="width:48%">
+          <option value="">選擇身分別</option>
+          ${Object.keys(identityOptions).map(k => `<option value="${k}">${k}</option>`).join('')}
+        </select>
+        <select id="channel" class="swal2-input" style="width:48%">
+          <option value="">選擇通路</option>
+          ${Object.keys(channelOptions).map(k => `<option value="${k}">${k}</option>`).join('')}
+        </select>
+      </div>
+      <select id="category" class="swal2-input" style="width:100%; margin-bottom:10px">
+        <option value="">選擇分類</option>
+        ${categories.map(c => `<option value="${c}">${c}</option>`).join('')}
+      </select>
+      <div id="productArea" style="display:flex; flex-wrap:wrap; justify-content:center; gap:3px; margin-bottom:10px;"></div>
+      <div id="styleArea" style="margin-bottom:10px"></div>
+      <input type="number" id="qty" class="swal2-input" placeholder="輸入退貨數量" min="1" style="max-width: 150px" />
+      <button onclick="addExchangeOldItem()" class="swal2-confirm swal2-styled" style="margin-top:10px; width:100%">➕ 新增退貨商品</button>
+    </div>
+  `;
+  const rightHtml = `
+    <div style="width:40%; float:right; padding-left:3%; box-sizing:border-box; border-left:1px solid #ccc; height:500px; overflow:auto; text-align:center">
+      <h3>退貨預覽</h3>
+      <ul id="oldPreviewList" style="padding-left:1em"></ul>
+      <hr>
+      <strong id="oldPreviewTotal"></strong><br>
+      <button onclick="proceedToExchangeNew()" class="swal2-confirm swal2-styled" style="margin-top:10px; width:100%">➡️ 下一步</button>
+    </div>
+  `;
+
+  Swal.fire({
+    title: '換貨 - 退貨商品',
+    html: `<div style="display:flex; max-width:1000px">${leftHtml}${rightHtml}</div>`,
+    showConfirmButton: false,
+    width: '70%',
+    didOpen: () => {
+      setupProductSelectForm(oldExchangeItems, 'old');
+    }
+  });
+}
+
+function addExchangeOldItem() {
+  const identity = document.getElementById('identity').value;
+  const channel = document.getElementById('channel').value;
+  if (!identity || !channel) {
+    Swal.showValidationMessage('請選擇身分別與通路');
+    return;
+  }
+  exchangeIdentity = identity;
+  exchangeChannel = channel;
+
+  const qty = parseInt(document.getElementById('qty').value);
+  const style = document.getElementById('style')?.value || '';
+  const selected = JSON.parse(document.getElementById('styleArea').dataset.selected || '{}');
+  if (!selected.name || !qty) {
+    Swal.showValidationMessage('請選擇商品與數量');
+    return;
+  }
+
+  const discount = ['校友', '在校生', '師長'].includes(identity) ? 0.9 : 1.0;
+
+  oldExchangeItems.push({
+    name: selected.name,
+    code: selected.code,
+    category: selected.category,
+    price: selected.price,
+    style,
+    qty,
+    subtotal: selected.price * qty * discount,
+    type: 'exchange_in'
+  });
+  updateExchangePreview('old', oldExchangeItems);
+}
+
+
+function proceedToExchangeNew() {
+  if (!oldExchangeItems.length) return;
+  showExchangeNewStep();
+}
+
+async function showExchangeNewStep() {
+  const categories = [...new Set(products.map(p => p.category || '未分類'))];
+  const leftHtml = `
+    <div style="width:60%; float:left; padding-right:3%; box-sizing:border-box; text-align:center">
+      <select id="category" class="swal2-input" style="width:100%; margin-bottom:10px">
+        <option value="">選擇分類</option>
+        ${categories.map(c => `<option value="${c}">${c}</option>`).join('')}
+      </select>
+      <div id="productArea" style="display:flex; flex-wrap:wrap; justify-content:center; gap:3px; margin-bottom:10px;"></div>
+      <div id="styleArea" style="margin-bottom:10px"></div>
+      <input type="number" id="qty" class="swal2-input" placeholder="輸入換貨數量" min="1" style="max-width: 150px" />
+      <button onclick="addExchangeNewItem()" class="swal2-confirm swal2-styled" style="margin-top:10px; width:100%">➕ 新增換貨商品</button>
+    </div>
+  `;
+  const rightHtml = `
+    <div style="width:40%; float:right; padding-left:3%; box-sizing:border-box; border-left:1px solid #ccc; height:500px; overflow:auto; text-align:center">
+      <h3>換貨預覽</h3>
+      <ul id="newPreviewList" style="padding-left:1em"></ul>
+      <hr>
+      <strong id="newPreviewTotal"></strong><br>
+      <button onclick="confirmExchangeDifference()" class="swal2-confirm swal2-styled" style="margin-top:10px; width:100%">➡️ 下一步</button>
+    </div>
+  `;
+  Swal.fire({
+    title: '換貨 - 換出商品',
+    html: `<div style="display:flex; max-width:1000px">${leftHtml}${rightHtml}</div>`,
+    showConfirmButton: false,
+    width: '70%',
+    didOpen: () => {
+      setupProductSelectForm(newExchangeItems, 'new');
+    }
+  });
+}
+
+function addExchangeNewItem() {
+  const qty = parseInt(document.getElementById('qty').value);
+  const style = document.getElementById('style')?.value || '';
+  const selected = JSON.parse(document.getElementById('styleArea').dataset.selected || '{}');
+  if (!selected.name || !qty) {
+    Swal.showValidationMessage('請選擇商品與數量');
+    return;
+  }
+
+  const discount = ['校友', '在校生', '師長'].includes(exchangeIdentity) ? 0.9 : 1.0;
+
+  newExchangeItems.push({
+    name: selected.name,
+    code: selected.code,
+    category: selected.category,
+    price: selected.price,
+    style,
+    qty,
+    subtotal: selected.price * qty * discount,
+    type: 'exchange_out'
+  });
+  updateExchangePreview('new', newExchangeItems);
+}
+
+
+function confirmExchangeDifference() {
+  const totalOld = oldExchangeItems.reduce((sum, i) => sum + i.subtotal, 0);
+  const totalNew = newExchangeItems.reduce((sum, i) => sum + i.subtotal, 0);
+  const diff = (totalNew - totalOld).toFixed(0);
+  const html = `
+    <div style="text-align:center">
+      <p>退貨總額：$${totalOld.toFixed(0)}</p>
+      <p>換貨總額：$${totalNew.toFixed(0)}</p>
+      <p><strong>差額：$${diff}</strong></p>
+    </div>
+  `;
+  Swal.fire({
+    title: '差額確認',
+    html,
+    confirmButtonText: '確認完成',
+    showCancelButton: true
+  }).then(res => {
+    if (res.isConfirmed) {
+      submitExchangeOrder();
+    }
+  });
+}
+
+function submitExchangeOrder() {
   Swal.fire({
     title: '輸入單號',
     input: 'text',
-    inputPlaceholder: '請輸入退換貨單號',
-    showCancelButton: true,
-    confirmButtonText: '送出',
-    cancelButtonText: '取消',
-    customClass: { input: 'custom-input' }
+    inputPlaceholder: '請輸入單號',
+    customClass: { input: 'custom-input' },
+    showCancelButton: true
   }).then(result => {
     if (!result.isConfirmed || !result.value) return;
-    const orderId = result.value;
-    submitReturnToBackend(items, orderId);
-  });
-}
-
-function submitReturnToBackend(items, orderId) {
-  const payload = {
-    order_id: orderId,
-    timestamp: new Date().toISOString(),
-    items: items
-  };
-
-  fetch("/api/return", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(payload)
-  })
-  .then(res => res.json())
-  .then(data => {
-    Swal.fire('✅ 完成', data.message || '退換貨已提交', 'success');
-    fetchData();
-    saleItems = [];
-  })
-  .catch(err => {
-    console.error(err);
-    Swal.fire('❌ 發送失敗', '請檢查網路或伺服器狀況', 'error');
-  });
-}
-
-async function handleExchangeFlow(oldItems, identity, channel) {
-  const categories = [...new Set(products.map(p => p.category || '未分類'))];
-
-  const formHtml = `
-    <select id="category" class="swal2-input">
-      <option value="">選擇分類</option>
-      ${categories.map(c => `<option value="${c}">${c}</option>`).join('')}
-    </select>
-    <div id="productArea"></div>
-    <div id="styleArea" style="margin-top:10px;"></div>
-    <input type="number" id="qty" class="swal2-input" placeholder="輸入數量" min="1" />
-  `;
-
-  await Swal.fire({
-    title: '新增換貨商品',
-    html: formHtml,
-    focusConfirm: false,
-    didOpen: () => {
-      const categorySelect = document.getElementById('category');
-      const productArea = document.getElementById('productArea');
-      const styleArea = document.getElementById('styleArea');
-
-      categorySelect.addEventListener('change', () => {
-        const selectedCategory = categorySelect.value;
-        const items = products.filter(p => p.category === selectedCategory);
-        productArea.innerHTML = items.map(p => {
-          let total = 0;
-          if (p.styles) {
-            total = Object.values(p.styles).reduce((sum, s) => sum + s.center + s.warehouse, 0);
-          } else {
-            total = (p.center || 0) + (p.warehouse || 0);
-          }
-          const disabled = total === 0 ? 'disabled' : '';
-          const label = total === 0 ? `${p.name}（無庫存）` : p.name;
-          return `<button class="product-btn" data-name="${p.name}" ${disabled}>${label}</button>`;
-        }).join('');
-
-
-        setTimeout(() => {
-          document.querySelectorAll('.product-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-              const itemName = btn.dataset.name;
-              const selected = products.find(p => p.name === itemName);
-              styleArea.innerHTML = '';
-
-              if (selected.styles) {
-                styleArea.innerHTML = '<label>選擇尺寸：<select id="style" class="swal2-input">' +
-                 sortSizes(selected.styles).map(size => {
-                  const stock = selected.styles[size];
-                  const total = stock.center + stock.warehouse;
-                  const disabled = total === 0 ? "disabled" : "";
-                  return `<option value="${size}" ${disabled}>${size}${total === 0 ? "（無庫存）" : ""}</option>`;
-                }).join('') + '</select></label>';
-              } else {
-                styleArea.innerHTML = `<input type="hidden" id="style" value="">`;
-              }
-
-              styleArea.dataset.selected = JSON.stringify(selected);
-            });
-          });
-        }, 0);
-      });
-    },
-    preConfirm: () => {
-      const qty = parseInt(document.getElementById('qty').value);
-      const style = document.getElementById('style')?.value || '';
-      const selectedProduct = JSON.parse(document.getElementById('styleArea').dataset.selected || '{}');
-
-      if (!selectedProduct.name || !qty) {
-        Swal.showValidationMessage('請選擇商品與數量');
-        return false;
-      }
-
-      return {
-        qty,
-        style,
-        product: selectedProduct
-      };
-    }
-  }).then(async result => {
-    if (!result.isConfirmed) return;
-
-    const selected = result.value.product;
-    const newItem = {
-      name: selected.name,
-      code: selected.code,
-      category: selected.category,
-      price: selected.price,
-      style: result.value.style,
-      qty: result.value.qty,
-      type: "exchange_out",
-      subtotal: selected.price * result.value.qty
+    const payload = {
+      order_id: result.value,
+      timestamp: new Date().toISOString(),
+      identity: exchangeIdentity,
+      channel: exchangeChannel,
+      items: [...oldExchangeItems, ...newExchangeItems]
     };
-
-    const more = await Swal.fire({
-      title: '已新增一筆換貨商品',
-      html: '是否繼續新增其他換貨商品？',
-      showCancelButton: true,
-      confirmButtonText: '繼續新增',
-      cancelButtonText: '完成送出'
+    fetch("/api/return", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    })
+    .then(res => res.json())
+    .then(data => {
+      Swal.fire('✅ 換貨完成', data.message || '已提交資料', 'success');
+      fetchData();
+    })
+    .catch(err => {
+      console.error(err);
+      Swal.fire('❌ 發送失敗', '請檢查伺服器或網路', 'error');
     });
-
-    if (more.isConfirmed) {
-      handleExchangeFlow(oldItems, identity, channel);
-    } else {
-      showExchangeSummary(oldItems, [newItem], identity, channel);
-    }
   });
 }
 
-//贈與/工用
+function updateExchangePreview(type, items) {
+  const listId = type === 'old' ? 'oldPreviewList' : 'newPreviewList';
+  const totalId = type === 'old' ? 'oldPreviewTotal' : 'newPreviewTotal';
+  const list = document.getElementById(listId);
+  const total = items.reduce((sum, i) => sum + i.subtotal, 0);
+
+  list.innerHTML = '';
+  items.forEach((item, idx) => {
+    const li = document.createElement('li');
+    li.innerHTML = `${item.name} ${item.style || ''} x${item.qty} = $${item.subtotal.toFixed(0)}
+      <button onclick="${type === 'old' ? `removeOldItem(${idx})` : `removeNewItem(${idx})`}">❌</button>`;
+    list.appendChild(li);
+  });
+  document.getElementById(totalId).textContent = `總計：$${total.toFixed(0)}`;
+}
+
+function removeOldItem(index) {
+  oldExchangeItems.splice(index, 1);
+  updateExchangePreview('old', oldExchangeItems);
+}
+function removeNewItem(index) {
+  newExchangeItems.splice(index, 1);
+  updateExchangePreview('new', newExchangeItems);
+}
+
+function setupProductSelectForm(targetArray, type) {
+  const categorySelect = document.getElementById('category');
+  const productArea = document.getElementById('productArea');
+  const styleArea = document.getElementById('styleArea');
+
+  categorySelect.addEventListener('change', () => {
+    const selectedCategory = categorySelect.value;
+    const items = products.filter(p => p.category === selectedCategory);
+    productArea.innerHTML = items.map(p => {
+      let total = p.styles ? Object.values(p.styles).reduce((s, i) => s + i.center, 0) : p.center;
+      const disabled = total === 0 ? 'disabled' : '';
+      const label = total === 0 ? `${p.name}（無庫存）` : p.name;
+      return `<button class="product-btn" data-name="${p.name}" ${disabled}>${label}</button>`;
+    }).join('');
+
+    setTimeout(() => {
+      document.querySelectorAll('.product-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const itemName = btn.dataset.name;
+          const selected = items.find(p => p.name === itemName);
+          styleArea.innerHTML = '';
+
+          if (selected.styles) {
+            const options = sortSizes(selected.styles).map(size => {
+              const stock = selected.styles[size];
+              const total = stock.center;
+              const disabled = total === 0 ? 'disabled' : '';
+              return `<option value="${size}" ${disabled}>${size}${total === 0 ? '（無庫存）' : ''}</option>`;
+            }).join('');
+            styleArea.innerHTML = `<select id="style" class="swal2-input">${options}</select>`;
+          } else {
+            styleArea.innerHTML = `<input type="hidden" id="style" value="">`;
+          }
+          styleArea.dataset.selected = JSON.stringify(selected);
+        });
+      });
+    }, 0);
+  });
+}
+
+
+//贈與
 async function handleGiftFlow() {
   let giftItems = [];
 
   async function addGiftItem() {
     const categories = [...new Set(products.map(p => p.category || '未分類'))];
 
-    const formHtml = `
-      <select id="category" class="swal2-input">
-        <option value="">選擇分類</option>
-        ${categories.map(c => `<option value="${c}">${c}</option>`).join('')}
-      </select>
-      <div id="productArea"></div>
-      <div id="styleArea" style="margin-top:10px;"></div>
-      <input type="number" id="qty" class="swal2-input" placeholder="輸入數量" min="1" />
+    const leftHtml = `
+      <div style="width:60%; float:left; padding-right:3%; box-sizing:border-box; text-align:center">
+        <select id="category" class="swal2-input" style="width:100%; margin-bottom:10px">
+          <option value="">選擇分類</option>
+          ${categories.map(c => `<option value="${c}">${c}</option>`).join('')}
+        </select>
+        <div id="productArea" style="display:flex; flex-wrap:wrap; justify-content:center; gap:3px; margin-bottom:10px;"></div>
+        <div id="styleArea" style="margin-bottom:10px"></div>
+        <input type="number" id="qty" class="swal2-input" placeholder="輸入數量" min="1" style="max-width: 150px" />
+        <button onclick="confirmGiftItem()" class="swal2-confirm swal2-styled" style="margin-top:10px; width:100%">➕ 新增商品</button>
+      </div>
     `;
 
-    await Swal.fire({
-      title: '贈與/工用',
-      html: formHtml,
-      focusConfirm: false,
+    const rightHtml = `
+      <div style="width:40%; float:right; padding-left:3%; box-sizing:border-box; border-left:1px solid #ccc; height:500px; overflow:auto; text-align:center">
+        <h3>即時預覽</h3>
+        <ul id="giftPreviewList" style="padding-left:1em"></ul>
+        <hr>
+        <strong id="giftPreviewTotal"></strong><br>
+        <button onclick="askGiftReason()" class="swal2-confirm swal2-styled" style="margin-top:10px; width:100%">✅ 完成送出</button>
+      </div>
+    `;
+
+    Swal.fire({
+      title: '贈與',
+      html: `<div style="display:flex; max-width:1000px">${leftHtml}${rightHtml}</div>`,
+      showConfirmButton: false,
+      width: '70%',
       didOpen: () => {
-        const categorySelect = document.getElementById('category');
-        const productArea = document.getElementById('productArea');
-        const styleArea = document.getElementById('styleArea');
-
-        categorySelect.addEventListener('change', () => {
-          const selectedCategory = categorySelect.value;
-          const items = products.filter(p => p.category === selectedCategory);
-          productArea.innerHTML = items.map(p => {
-            const total = p.styles
-              ? Object.values(p.styles).reduce((sum, s) => sum + s.center + s.warehouse, 0)
-              : (p.center || 0) + (p.warehouse || 0);
-            const disabled = total === 0 ? 'disabled' : '';
-            const label = total === 0 ? `${p.name}（無庫存）` : p.name;
-            return `<button class="product-btn" data-name="${p.name}" ${disabled}>${label}</button>`;
-          }).join('');
-
-          setTimeout(() => {
-            document.querySelectorAll('.product-btn').forEach(btn => {
-              btn.addEventListener('click', () => {
-                const itemName = btn.dataset.name;
-                const selected = products.find(p => p.name === itemName);
-                styleArea.innerHTML = '';
-
-                if (selected.styles) {
-                  const styleOptions = sortSizes(selected.styles).map(size => {
-                    const stock = selected.styles[size];
-                    const total = stock.center + stock.warehouse;
-                    const disabled = total === 0 ? "disabled" : "";
-                    return `<option value="${size}" ${disabled}>${size}${total === 0 ? "（無庫存）" : ""}</option>`;
-                  }).join('');
-                  styleArea.innerHTML = `<select id="style" class="swal2-input">${styleOptions}</select>`;
-                } else {
-                  styleArea.innerHTML = `<input type="hidden" id="style" value="">`;
-                }
-
-                styleArea.dataset.selected = JSON.stringify(selected);
-              });
-            });
-          }, 0);
-        });
-      },
-      preConfirm: () => {
-        const qty = parseInt(document.getElementById('qty').value);
-        const style = document.getElementById('style')?.value || '';
-        const selected = JSON.parse(document.getElementById('styleArea').dataset.selected || '{}');
-        if (!selected.name || !qty) {
-          Swal.showValidationMessage('請選擇商品與數量');
-          return false;
-        }
-        return {
-          product: selected,
-          style,
-          qty
-        };
+        setupGiftForm();
       }
-    }).then(result => {
-      if (!result.isConfirmed) return;
-      const p = result.value.product;
-      giftItems.push({
-        name: p.name,
-        code: p.code,
-        category: p.category,
-        price: 0,
-        style: result.value.style,
-        qty: result.value.qty
-      });
-
-      Swal.fire({
-        title: '✅ 已新增一筆',
-        text: '是否繼續新增？',
-        showCancelButton: true,
-        confirmButtonText: '新增',
-        cancelButtonText: '完成'
-      }).then(r => {
-        if (r.isConfirmed) {
-          addGiftItem();
-        } else {
-          askGiftReason(giftItems);
-        }
-      });
     });
   }
 
-  function askGiftReason(items) {
+  function setupGiftForm() {
+    const categorySelect = document.getElementById('category');
+    const productArea = document.getElementById('productArea');
+    const styleArea = document.getElementById('styleArea');
+
+    categorySelect.addEventListener('change', () => {
+      const selectedCategory = categorySelect.value;
+      const items = products.filter(p => p.category === selectedCategory);
+      productArea.innerHTML = items.map(p => {
+        let total = p.styles ? Object.values(p.styles).reduce((s, i) => s + i.center + i.warehouse, 0) : p.center + p.warehouse;
+        const disabled = total === 0 ? 'disabled' : '';
+        const label = total === 0 ? `${p.name}（無庫存）` : p.name;
+        return `<button class="product-btn" data-name="${p.name}" ${disabled}>${label}</button>`;
+      }).join('');
+
+      setTimeout(() => {
+        document.querySelectorAll('.product-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const itemName = btn.dataset.name;
+            const selected = products.find(p => p.name === itemName);
+            styleArea.innerHTML = '';
+
+            if (selected.styles) {
+              const options = sortSizes(selected.styles).map(size => {
+                const stock = selected.styles[size];
+                const total = stock.center + stock.warehouse;
+                const disabled = total === 0 ? 'disabled' : '';
+                return `<option value="${size}" ${disabled}>${size}${total === 0 ? '（無庫存）' : ''}</option>`;
+              }).join('');
+              styleArea.innerHTML = `<select id="style" class="swal2-input">${options}</select>`;
+            } else {
+              styleArea.innerHTML = `<input type="hidden" id="style" value="">`;
+            }
+            styleArea.dataset.selected = JSON.stringify(selected);
+          });
+        });
+      }, 0);
+    });
+  }
+
+  window.confirmGiftItem = function () {
+    const qty = parseInt(document.getElementById('qty').value);
+    const style = document.getElementById('style')?.value || '';
+    const selected = JSON.parse(document.getElementById('styleArea').dataset.selected || '{}');
+    if (!selected.name || !qty) {
+      Swal.showValidationMessage('請選擇商品與數量');
+      return;
+    }
+    giftItems.push({
+      name: selected.name,
+      code: selected.code,
+      category: selected.category,
+      price: 0,
+      style,
+      qty
+    });
+    updateGiftPreview();
+  }
+
+  function updateGiftPreview() {
+    const list = document.getElementById('giftPreviewList');
+    list.innerHTML = '';
+    giftItems.forEach((item, idx) => {
+      const li = document.createElement('li');
+      li.innerHTML = `${item.name} ${item.style || ''} x${item.qty} <button onclick="removeGiftItem(${idx})">❌</button>`;
+      list.appendChild(li);
+    });
+    document.getElementById('giftPreviewTotal').textContent = `共 ${giftItems.length} 筆`;
+  }
+
+  window.removeGiftItem = function (index) {
+    giftItems.splice(index, 1);
+    updateGiftPreview();
+  }
+
+  window.askGiftReason = function () {
+    if (!giftItems.length) return;
     Swal.fire({
-      title: '輸入用途/贈與人',
+      title: '輸入贈與人',
       input: 'text',
-      inputPlaceholder: '例如：展覽樣品 / 教材 / 陳老師',
+      inputPlaceholder: '例如：張書銜學長',
       showCancelButton: true,
-      customClass: {
-            input: 'custom-input'
-          },
       confirmButtonText: '預覽送出',
-      cancelButtonText: '取消'
+      cancelButtonText: '取消',
+      customClass: { input: 'custom-input' }
     }).then(result => {
       if (!result.isConfirmed || !result.value) return;
-
       const reason = result.value;
       let html = '<ul>';
-      items.forEach(item => {
+      giftItems.forEach(item => {
         html += `<li>${item.name} ${item.style || ''} x ${item.qty}</li>`;
       });
       html += '</ul>';
@@ -797,11 +867,12 @@ async function handleGiftFlow() {
         cancelButtonText: '返回'
       }).then(res => {
         if (res.isConfirmed) {
-          submitGiftToBackend(items, reason);
+          submitGiftToBackend(giftItems, reason);
         }
       });
     });
-  }
+  };
+
 
   function submitGiftToBackend(items, reason) {
     const payload = {
@@ -825,139 +896,307 @@ async function handleGiftFlow() {
     });
   }
 
-  // 啟動第一筆新增
   addGiftItem();
 }
+
+
+//工用
+async function handleWorkerFlow() {
+  let giftItems = [];
+
+  async function addGiftItem() {
+    const categories = [...new Set(products.map(p => p.category || '未分類'))];
+
+    const leftHtml = `
+      <div style="width:60%; float:left; padding-right:3%; box-sizing:border-box; text-align:center">
+        <select id="category" class="swal2-input" style="width:100%; margin-bottom:10px">
+          <option value="">選擇分類</option>
+          ${categories.map(c => `<option value="${c}">${c}</option>`).join('')}
+        </select>
+        <div id="productArea" style="display:flex; flex-wrap:wrap; justify-content:center; gap:3px; margin-bottom:10px;"></div>
+        <div id="styleArea" style="margin-bottom:10px"></div>
+        <input type="number" id="qty" class="swal2-input" placeholder="輸入數量" min="1" style="max-width: 150px" />
+        <button onclick="confirmGiftItem()" class="swal2-confirm swal2-styled" style="margin-top:10px; width:100%">➕ 新增商品</button>
+      </div>
+    `;
+
+    const rightHtml = `
+      <div style="width:40%; float:right; padding-left:3%; box-sizing:border-box; border-left:1px solid #ccc; height:500px; overflow:auto; text-align:center">
+        <h3>即時預覽</h3>
+        <ul id="giftPreviewList" style="padding-left:1em"></ul>
+        <hr>
+        <strong id="giftPreviewTotal"></strong><br>
+        <button onclick="askGiftReason()" class="swal2-confirm swal2-styled" style="margin-top:10px; width:100%">✅ 完成送出</button>
+      </div>
+    `;
+
+    Swal.fire({
+      title: '工用',
+      html: `<div style="display:flex; max-width:1000px">${leftHtml}${rightHtml}</div>`,
+      showConfirmButton: false,
+      width: '70%',
+      didOpen: () => {
+        setupGiftForm();
+      }
+    });
+  }
+
+  function setupGiftForm() {
+    const categorySelect = document.getElementById('category');
+    const productArea = document.getElementById('productArea');
+    const styleArea = document.getElementById('styleArea');
+
+    categorySelect.addEventListener('change', () => {
+      const selectedCategory = categorySelect.value;
+      const items = products.filter(p => p.category === selectedCategory);
+      productArea.innerHTML = items.map(p => {
+        let total = p.styles ? Object.values(p.styles).reduce((s, i) => s + i.center + i.warehouse, 0) : p.center + p.warehouse;
+        const disabled = total === 0 ? 'disabled' : '';
+        const label = total === 0 ? `${p.name}（無庫存）` : p.name;
+        return `<button class="product-btn" data-name="${p.name}" ${disabled}>${label}</button>`;
+      }).join('');
+
+      setTimeout(() => {
+        document.querySelectorAll('.product-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const itemName = btn.dataset.name;
+            const selected = products.find(p => p.name === itemName);
+            styleArea.innerHTML = '';
+
+            if (selected.styles) {
+              const options = sortSizes(selected.styles).map(size => {
+                const stock = selected.styles[size];
+                const total = stock.center + stock.warehouse;
+                const disabled = total === 0 ? 'disabled' : '';
+                return `<option value="${size}" ${disabled}>${size}${total === 0 ? '（無庫存）' : ''}</option>`;
+              }).join('');
+              styleArea.innerHTML = `<select id="style" class="swal2-input">${options}</select>`;
+            } else {
+              styleArea.innerHTML = `<input type="hidden" id="style" value="">`;
+            }
+            styleArea.dataset.selected = JSON.stringify(selected);
+          });
+        });
+      }, 0);
+    });
+  }
+
+  window.confirmGiftItem = function () {
+    const qty = parseInt(document.getElementById('qty').value);
+    const style = document.getElementById('style')?.value || '';
+    const selected = JSON.parse(document.getElementById('styleArea').dataset.selected || '{}');
+    if (!selected.name || !qty) {
+      Swal.showValidationMessage('請選擇商品與數量');
+      return;
+    }
+    giftItems.push({
+      name: selected.name,
+      code: selected.code,
+      category: selected.category,
+      price: 0,
+      style,
+      qty
+    });
+    updateGiftPreview();
+  }
+
+  function updateGiftPreview() {
+    const list = document.getElementById('giftPreviewList');
+    list.innerHTML = '';
+    giftItems.forEach((item, idx) => {
+      const li = document.createElement('li');
+      li.innerHTML = `${item.name} ${item.style || ''} x${item.qty} <button onclick="removeGiftItem(${idx})">❌</button>`;
+      list.appendChild(li);
+    });
+    document.getElementById('giftPreviewTotal').textContent = `共 ${giftItems.length} 筆`;
+  }
+
+  window.removeGiftItem = function (index) {
+    giftItems.splice(index, 1);
+    updateGiftPreview();
+  }
+
+  window.askGiftReason = function () {
+    if (!giftItems.length) return;
+    Swal.fire({
+      title: '輸入用途',
+      input: 'text',
+      inputPlaceholder: '例如：樣品',
+      showCancelButton: true,
+      confirmButtonText: '預覽送出',
+      cancelButtonText: '取消',
+      customClass: { input: 'custom-input' }
+    }).then(result => {
+      if (!result.isConfirmed || !result.value) return;
+      const reason = result.value;
+      let html = '<ul>';
+      giftItems.forEach(item => {
+        html += `<li>${item.name} ${item.style || ''} x ${item.qty}</li>`;
+      });
+      html += '</ul>';
+
+      Swal.fire({
+        title: '送出確認',
+        html: html + `<br>用途：${reason}`,
+        showCancelButton: true,
+        confirmButtonText: '送出',
+        cancelButtonText: '返回'
+      }).then(res => {
+        if (res.isConfirmed) {
+          submitGiftToBackend(giftItems, reason);
+        }
+      });
+    });
+  };
+
+
+  function submitGiftToBackend(items, reason) {
+    const payload = {
+      items,
+      reason,
+      timestamp: new Date().toISOString()
+    };
+    fetch("/api/gift", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    })
+    .then(res => res.json())
+    .then(data => {
+      Swal.fire("✅ 完成", data.message || "資料已送出", "success");
+      fetchData();
+    })
+    .catch(err => {
+      console.error(err);
+      Swal.fire("❌ 發送失敗", "請確認伺服器狀況", "error");
+    });
+  }
+
+  addGiftItem();
+}
+
 
 
 //調貨
 async function handleTransferFlow() {
   let transferItems = [];
+  const categories = [...new Set(products.map(p => p.category || '未分類'))];
 
-  async function addTransferItem() {
-    const categories = [...new Set(products.map(p => p.category || '未分類'))];
-
-    const formHtml = `
-      <select id="category" class="swal2-input">
+  const leftHtml = `
+    <div style="width:60%; float:left; padding-right:3%; box-sizing:border-box; text-align:center">
+      <select id="category" class="swal2-input" style="width:100%; margin-bottom:10px">
         <option value="">選擇分類</option>
         ${categories.map(c => `<option value="${c}">${c}</option>`).join('')}
       </select>
-      <div id="productArea"></div>
-      <div id="styleArea" style="margin-top:10px;"></div>
-      <input type="number" id="qty" class="swal2-input" placeholder="輸入數量" min="1" />
-    `;
+      <div id="productArea" style="display:flex; flex-wrap:wrap; justify-content:center; gap:3px; margin-bottom:10px;"></div>
+      <div id="styleArea" style="margin-bottom:10px"></div>
+      <input type="number" id="qty" class="swal2-input" placeholder="輸入數量" min="1" style="max-width:150px" />
+      <button onclick="addTransferItem()" class="swal2-confirm swal2-styled" style="margin-top:10px; width:100%">➕ 新增商品</button>
+    </div>
+  `;
 
-    await Swal.fire({
-      title: '新增調貨商品',
-      html: formHtml,
-      focusConfirm: false,
-      didOpen: () => {
-        const categorySelect = document.getElementById('category');
-        const productArea = document.getElementById('productArea');
-        const styleArea = document.getElementById('styleArea');
+  const rightHtml = `
+    <div style="width:40%; float:right; padding-left:3%; box-sizing:border-box; border-left:1px solid #ccc; height:500px; overflow:auto; text-align:center">
+      <h3>即時預覽</h3>
+      <ul id="transferPreviewList" style="padding-left:1em"></ul>
+      <hr>
+      <strong id="transferPreviewTotal"></strong><br>
+      <button onclick="submitTransferItems()" class="swal2-confirm swal2-styled" style="margin-top:10px; width:100%">✅ 完成送出</button>
+    </div>
+  `;
 
-        categorySelect.addEventListener('change', () => {
-          const selectedCategory = categorySelect.value;
-          const items = products.filter(p => p.category === selectedCategory);
-          productArea.innerHTML = items.map(p => {
-            const total = p.styles
-              ? Object.values(p.styles).reduce((sum, s) => sum + s.warehouse, 0)
-              : (p.warehouse || 0);
-            const disabled = total === 0 ? 'disabled' : '';
-            const label = total === 0 ? `${p.name}（無庫存）` : p.name;
-            return `<button class="product-btn" data-name="${p.name}" ${disabled}>${label}</button>`;
-          }).join('');
+  Swal.fire({
+    title: '調貨作業',
+    html: `<div style="display:flex; max-width:1000px">${leftHtml}${rightHtml}</div>`,
+    showConfirmButton: false,
+    width: '70%',
+    didOpen: () => {
+      setupTransferForm();
+    },
+    willOpen: () => {
+      Swal.resetValidationMessage();
+    }
+  });
 
-          setTimeout(() => {
-            document.querySelectorAll('.product-btn').forEach(btn => {
-              btn.addEventListener('click', () => {
-                const itemName = btn.dataset.name;
-                const selected = products.find(p => p.name === itemName);
-                styleArea.innerHTML = '';
+  function setupTransferForm() {
+    const categorySelect = document.getElementById('category');
+    const productArea = document.getElementById('productArea');
+    const styleArea = document.getElementById('styleArea');
 
-                if (selected.styles) {
-                  const styleOptions = sortSizes(selected.styles).map(size => {
-                    const stock = selected.styles[size];
-                    const total = stock.center + stock.warehouse;
-                    const disabled = total === 0 ? "disabled" : "";
-                    return `<option value="${size}" ${disabled}>${size}${total === 0 ? "（無庫存）" : ""}</option>`;
-                  }).join('');
-                  styleArea.innerHTML = `<select id="style" class="swal2-input">${styleOptions}</select>`;
-                } else {
-                  styleArea.innerHTML = `<input type="hidden" id="style" value="">`;
-                }
+    categorySelect.addEventListener('change', () => {
+      const selectedCategory = categorySelect.value;
+      const items = products.filter(p => p.category === selectedCategory);
+      productArea.innerHTML = items.map(p => {
+        let total = p.styles ? Object.values(p.styles).reduce((s, i) => s + i.warehouse, 0) : p.warehouse;
+        const disabled = total === 0 ? 'disabled' : '';
+        const label = total === 0 ? `${p.name}（無庫存）` : p.name;
+        return `<button class="product-btn" data-name="${p.name}" ${disabled}>${label}</button>`;
+      }).join('');
 
-                styleArea.dataset.selected = JSON.stringify(selected);
-              });
-            });
-          }, 0);
+      setTimeout(() => {
+        document.querySelectorAll('.product-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const itemName = btn.dataset.name;
+            const selected = items.find(p => p.name === itemName);
+            styleArea.innerHTML = '';
+
+            if (selected.styles) {
+              const options = sortSizes(selected.styles).map(size => {
+                const stock = selected.styles[size];
+                const total = stock.warehouse;
+                const disabled = total === 0 ? 'disabled' : '';
+                return `<option value="${size}" ${disabled}>${size}${total === 0 ? '（無庫存）' : ''}</option>`;
+              }).join('');
+              styleArea.innerHTML = `<select id="style" class="swal2-input">${options}</select>`;
+            } else {
+              styleArea.innerHTML = `<input type="hidden" id="style" value="">`;
+            }
+            styleArea.dataset.selected = JSON.stringify(selected);
+          });
         });
-      },
-      preConfirm: () => {
-        const qty = parseInt(document.getElementById('qty').value);
-        const style = document.getElementById('style')?.value || '';
-        const selected = JSON.parse(document.getElementById('styleArea').dataset.selected || '{}');
-        if (!selected.name || !qty) {
-          Swal.showValidationMessage('請選擇商品與數量');
-          return false;
-        }
-        return {
-          product: selected,
-          style,
-          qty
-        };
-      }
-    }).then(result => {
-      if (!result.isConfirmed) return;
-      const p = result.value.product;
-      transferItems.push({
-        name: p.name,
-        code: p.code,
-        category: p.category,
-        style: result.value.style,
-        qty: result.value.qty
-      });
-
-      Swal.fire({
-        title: '✅ 已新增一筆調貨',
-        text: '是否繼續新增？',
-        showCancelButton: true,
-        confirmButtonText: '新增',
-        cancelButtonText: '完成'
-      }).then(r => {
-        if (r.isConfirmed) {
-          addTransferItem();
-        } else {
-          showTransferSummary(transferItems);
-        }
-      });
+      }, 0);
     });
   }
 
-  function showTransferSummary(items) {
-    let html = '<ul>';
-    items.forEach(item => {
-      html += `<li>${item.name} ${item.style || ''} x${item.qty}</li>`;
+  window.addTransferItem = function () {
+    const qty = parseInt(document.getElementById('qty').value);
+    const style = document.getElementById('style')?.value || '';
+    const selected = JSON.parse(document.getElementById('styleArea').dataset.selected || '{}');
+    if (!selected.name || !qty) {
+      Swal.showValidationMessage('請選擇商品與數量');
+      return;
+    }
+    transferItems.push({
+      name: selected.name,
+      code: selected.code,
+      category: selected.category,
+      style,
+      qty
     });
-    html += '</ul>';
-
-    Swal.fire({
-      title: '確認調貨清單',
-      html: html,
-      showCancelButton: true,
-      confirmButtonText: '送出',
-      cancelButtonText: '返回'
-    }).then(res => {
-      if (res.isConfirmed) {
-        submitTransfer(items);
-      }
-    });
+    updateTransferPreview();
   }
 
-  function submitTransfer(items) {
+  window.updateTransferPreview = function () {
+    const list = document.getElementById('transferPreviewList');
+    list.innerHTML = '';
+    transferItems.forEach((item, idx) => {
+      const li = document.createElement('li');
+      li.innerHTML = `${item.name} ${item.style || ''} x${item.qty} <button onclick="removeTransferItem(${idx})">❌</button>`;
+      list.appendChild(li);
+    });
+    document.getElementById('transferPreviewTotal').textContent = `共 ${transferItems.length} 筆`;
+  }
+
+  window.removeTransferItem = function (index) {
+    transferItems.splice(index, 1);
+    updateTransferPreview();
+  }
+
+  window.submitTransferItems = function () {
+    if (!transferItems.length) return;
     const payload = {
       timestamp: new Date().toISOString(),
-      items: items
+      items: transferItems
     };
 
     fetch("/api/transfer", {
@@ -975,10 +1214,8 @@ async function handleTransferFlow() {
       Swal.fire("❌ 發送失敗", "請確認伺服器狀況", "error");
     });
   }
-
-  // 啟動新增
-  addTransferItem();
 }
+
 
 
 //補貨
