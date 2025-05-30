@@ -6,7 +6,7 @@ body {
   padding: 20px;
 }
 h1 {
-  color: #007bff;
+  color: black;
 }
 input[type="text"] {
   width: 100%;
@@ -19,11 +19,12 @@ input[type="text"] {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
 }
 .button-group button {
-  color: white;
-  border: none;
+  background-color: #f8f9fa;
+  color: black;
+  border: 2px solid black;
   padding: 10px 10px;
   border-radius: 5px;
   cursor: pointer;
@@ -31,34 +32,27 @@ input[type="text"] {
   transition: background-color 0.2s ease;
   font-size: 20px !important;
 }
+.logout-button {
+  background-color: #f8f9fa;
+  color: black;
+  border: 2px solid black;
+  padding: 5px 5px;
+  border-radius: 5px;
+  cursor: pointer;
+  flex: 1 1 120px;
+  transition: background-color 0.2s ease;
+  font-size: 15px !important;
+}
 .button-group button:hover {
   background-color: black;
-  scale: 1.1;
   color: white;
 }
-.sale{
-  background-color: #1976d2;
+.logout-button:hover {
+  background-color: black;
+  color: white;
 }
-.return{
-  background-color: #f57c00;
-}
-.gift{
-  background-color: #8e24aa;
-}
-.transfer{
-  background-color: #009688;
-}
-.restock{
-  background-color: #43a047;
-}
-.activity{
-  background-color: #ec407a;
-}
-.occupy{
-  background-color: #616161;
-}
-.download{
-  background-color: #283593;
+.filter-group select{
+  margin-bottom: 5px;
 }
 .product {
   background-color: #fff;
@@ -115,4 +109,12 @@ input[type="text"] {
   background-color: #ccc;
   cursor: not-allowed;
 }
-
+.custom-select {
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 1rem;
+  background-color: white;
+  appearance: none;
+  margin-bottom: 10px;
+}
