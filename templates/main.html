@@ -10,23 +10,30 @@
 </head>
 <body>
   <h1>銷售系統</h1>
-
-  <!-- 新增登出按鈕 -->
-  <div style="text-align: right; margin-bottom: 10px;">
-    <button onclick="logout()">登出</button>
+  <div style="margin-bottom: 10px;">
+    <button onclick="logout()" class="logout-button">登出</button>
   </div>
 
-  <input type="text" id="searchInput" placeholder="輸入關鍵字搜尋商品...">
+  <div class="filter-group">
+    <select id="categoryFilter" class="custom-select" onchange="filterProducts()">
+      <option value="">全部分類</option>
+    </select>
+    <input type="text" id="searchInput" placeholder="輸入關鍵字搜尋商品..." oninput="filterProducts()">
+  </div>
 
   <div class="button-group">
-    <button class="sale" onclick="handleSaleFlow()">🧾銷售</button>
-    <button class="return" onclick="handleReturnFlow()">↩️ 退換貨</button>
-    <button class="gift" onclick="handleGiftFlow()">🎁贈與/工用</button>
-    <button class="transfer" onclick="handleTransferFlow()">📦調貨</button>
-    <button class="restock" onclick="handleRestockFlow()">📦補貨</button>
-    <button class="activity" onclick="handleActivityFlow()">🧩活動</button>
-    <button class="occupy" onclick="handleOccupyFlow()">📦佔扣庫存</button>
-    <button class="download" onclick="openDownloadModal()">📊月結</button>
+    <button  onclick="handleSaleFlow()"><ion-icon name="cart-outline"></ion-icon> 銷售</button>
+    <button  onclick="handleReturnFlow()"><ion-icon name="return-up-back-outline"></ion-icon> 退貨</button>
+    <button  onclick="handleExchangeFlow()"><ion-icon name="repeat-outline"></ion-icon> 換貨</button>
+    <button  onclick="handleGiftFlow()"><ion-icon name="gift-outline"></ion-icon> 贈與</button>
+    <button  onclick="handleActivityFlow()"><ion-icon name="pricetags-outline"></ion-icon> 活動</button>
+  </div>
+  <div class="button-group">
+    <button  onclick="handleWorkerFlow()"><ion-icon name="people-outline"></ion-icon> 工用</button>
+    <button  onclick="handleTransferFlow()"><ion-icon name="return-up-forward-outline"></ion-icon> 調貨</button>
+    <button  onclick="handleRestockFlow()"><ion-icon name="download-outline"></ion-icon> 補貨</button>
+    <button  onclick="handleOccupyFlow()"><ion-icon name="sync-outline"></ion-icon> 佔扣庫存</button>
+    <button  onclick="openDownloadModal()"><ion-icon name="reader-outline"></ion-icon> 月結</button>
   </div>
 
   <div id="resultArea"></div>
@@ -46,5 +53,7 @@
       }
     });
   </script>
+  <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+  <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
 </body>
 </html>
