@@ -1513,7 +1513,7 @@ async function handleActivityFlow() {
 }
 
 
-//佔扣
+//暫扣
 async function handleOccupyFlow() {
   let occupyItems = [];
   let mode = "";
@@ -1522,7 +1522,7 @@ async function handleOccupyFlow() {
     title: '請選擇操作類型',
     input: 'select',
     inputOptions: {
-      use: '佔用（從倉庫扣除）',
+      use: '暫用（從倉庫扣除）',
       return: '歸還（補回倉庫）'
     },
     inputPlaceholder: '請選擇',
@@ -1556,7 +1556,7 @@ async function handleOccupyFlow() {
   `;
 
   Swal.fire({
-    title: `佔扣庫存 - ${mode === 'use' ? '佔用' : '歸還'}`,
+    title: `暫扣庫存 - ${mode === 'use' ? '佔用' : '歸還'}`,
     html: `<div style="display:flex; max-width:1000px">${leftHtml}${rightHtml}</div>`,
     showConfirmButton: false,
     width: '70%',
