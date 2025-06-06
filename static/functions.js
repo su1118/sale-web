@@ -1221,125 +1221,114 @@ async function handleTransferFlow() {
 //補貨
 async function handleRestockFlow() {
   let restockItems = [];
+  const categories = [...new Set(products.map(p => p.category || '未分類'))];
 
-  async function addRestockItem() {
-    const categories = [...new Set(products.map(p => p.category || '未分類'))];
-
-    const formHtml = `
-      <select id="category" class="swal2-input">
+  const leftHtml = `
+    <div style="width:60%; float:left; padding-right:3%; box-sizing:border-box; text-align:center">
+      <select id="category" class="swal2-input" style="width:100%; margin-bottom:10px">
         <option value="">選擇分類</option>
         ${categories.map(c => `<option value="${c}">${c}</option>`).join('')}
       </select>
-      <div id="productArea"></div>
-      <div id="styleArea" style="margin-top:10px;"></div>
-      <input type="number" id="qty" class="swal2-input" placeholder="補貨數量" min="1" />
-    `;
+      <div id="productArea" style="display:flex; flex-wrap:wrap; justify-content:center; gap:3px; margin-bottom:10px;"></div>
+      <div id="styleArea" style="margin-bottom:10px;"></div>
+      <input type="number" id="qty" class="swal2-input" placeholder="補貨數量" min="1" style="max-width:150px" />
+      <button onclick="addRestockItem()" class="swal2-confirm swal2-styled" style="margin-top:10px; width:100%">➕ 新增商品</button>
+    </div>
+  `;
 
-    await Swal.fire({
-      title: '新增補貨商品',
-      html: formHtml,
-      focusConfirm: false,
-      didOpen: () => {
-        const categorySelect = document.getElementById('category');
-        const productArea = document.getElementById('productArea');
-        const styleArea = document.getElementById('styleArea');
+  const rightHtml = `
+    <div style="width:40%; float:right; padding-left:3%; box-sizing:border-box; border-left:1px solid #ccc; height:500px; overflow:auto; text-align:center">
+      <h3>即時預覽</h3>
+      <ul id="restockPreviewList" style="padding-left:1em"></ul>
+      <hr>
+      <strong id="restockPreviewTotal"></strong><br>
+      <button onclick="submitRestockItems()" class="swal2-confirm swal2-styled" style="margin-top:10px; width:100%">✅ 完成送出</button>
+    </div>
+  `;
 
-        categorySelect.addEventListener('change', () => {
-          const selectedCategory = categorySelect.value;
-          const items = products.filter(p => p.category === selectedCategory);
-          productArea.innerHTML = items.map(p => {
-            return `<button class="product-btn" data-name="${p.name}">${p.name}</button>`;
-          }).join('');
+  Swal.fire({
+    title: '補貨作業',
+    html: `<div style="display:flex; max-width:1000px">${leftHtml}${rightHtml}</div>`,
+    showConfirmButton: false,
+    width: '70%',
+    willOpen: () => Swal.resetValidationMessage(),
+    didOpen: () => setupRestockForm()
+  });
 
-          setTimeout(() => {
-            document.querySelectorAll('.product-btn').forEach(btn => {
-              btn.addEventListener('click', () => {
-                const itemName = btn.dataset.name;
-                const selected = products.find(p => p.name === itemName);
-                styleArea.innerHTML = '';
+  function setupRestockForm() {
+    const categorySelect = document.getElementById('category');
+    const productArea = document.getElementById('productArea');
+    const styleArea = document.getElementById('styleArea');
 
-                if (selected.styles) {
-                 const styleOptions = sortSizes(selected.styles).map(size => {
-                  return `<option value="${size}">${size}</option>`;
-                }).join('');
-                  styleArea.innerHTML = `<select id="style" class="swal2-input">${styleOptions}</select>`;
-                } else {
-                  styleArea.innerHTML = `<input type="hidden" id="style" value="">`;
-                }
+    categorySelect.addEventListener('change', () => {
+      const selectedCategory = categorySelect.value;
+      const items = products.filter(p => p.category === selectedCategory);
+      productArea.innerHTML = items.map(p => {
+        return `<button class="product-btn" data-name="${p.name}">${p.name}</button>`;
+      }).join('');
 
-                styleArea.dataset.selected = JSON.stringify(selected);
-              });
-            });
-          }, 0);
+      setTimeout(() => {
+        document.querySelectorAll('.product-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const itemName = btn.dataset.name;
+            const selected = items.find(p => p.name === itemName);
+            styleArea.innerHTML = '';
+
+            if (selected.styles) {
+              const options = sortSizes(selected.styles).map(size => {
+                return `<option value="${size}">${size}</option>`;
+              }).join('');
+              styleArea.innerHTML = `<select id="style" class="swal2-input">${options}</select>`;
+            } else {
+              styleArea.innerHTML = `<input type="hidden" id="style" value="">`;
+            }
+            styleArea.dataset.selected = JSON.stringify(selected);
+          });
         });
-      },
-      preConfirm: () => {
-        const qty = parseInt(document.getElementById('qty').value);
-        const style = document.getElementById('style')?.value || '';
-        const selected = JSON.parse(document.getElementById('styleArea').dataset.selected || '{}');
-        if (!selected.name || !qty) {
-          Swal.showValidationMessage('請選擇商品與數量');
-          return false;
-        }
-        return {
-          product: selected,
-          style,
-          qty
-        };
-      }
-    }).then(result => {
-      if (!result.isConfirmed) return;
-      const p = result.value.product;
-      restockItems.push({
-        name: p.name,
-        code: p.code,
-        category: p.category,
-        style: result.value.style,
-        qty: result.value.qty
-      });
-
-      Swal.fire({
-        title: '✅ 已新增一筆補貨',
-        text: '是否繼續新增？',
-        showCancelButton: true,
-        confirmButtonText: '新增',
-        cancelButtonText: '完成'
-      }).then(r => {
-        if (r.isConfirmed) {
-          addRestockItem();
-        } else {
-          showRestockSummary(restockItems);
-        }
-      });
+      }, 0);
     });
   }
 
-  function showRestockSummary(items) {
-    let html = '<ul>';
-    items.forEach(item => {
-      html += `<li>${item.name} ${item.style || ''} x${item.qty}</li>`;
+  window.addRestockItem = function () {
+    const qty = parseInt(document.getElementById('qty').value);
+    const style = document.getElementById('style')?.value || '';
+    const selected = JSON.parse(document.getElementById('styleArea').dataset.selected || '{}');
+    if (!selected.name || !qty) {
+      Swal.showValidationMessage('請選擇商品與數量');
+      return;
+    }
+    restockItems.push({
+      name: selected.name,
+      code: selected.code,
+      category: selected.category,
+      style,
+      qty
     });
-    html += '</ul>';
-
-    Swal.fire({
-      title: '確認補貨清單',
-      html: html,
-      showCancelButton: true,
-      confirmButtonText: '送出',
-      cancelButtonText: '返回'
-    }).then(res => {
-      if (res.isConfirmed) {
-        submitRestock(items);
-      }
-    });
+    updateRestockPreview();
   }
 
-  function submitRestock(items) {
+  window.updateRestockPreview = function () {
+    const list = document.getElementById('restockPreviewList');
+    list.innerHTML = '';
+    restockItems.forEach((item, idx) => {
+      const li = document.createElement('li');
+      li.innerHTML = `${item.name} ${item.style || ''} x${item.qty} <button onclick="removeRestockItem(${idx})">❌</button>`;
+      list.appendChild(li);
+    });
+    document.getElementById('restockPreviewTotal').textContent = `共 ${restockItems.length} 筆`;
+  }
+
+  window.removeRestockItem = function (index) {
+    restockItems.splice(index, 1);
+    updateRestockPreview();
+  }
+
+  window.submitRestockItems = function () {
+    if (!restockItems.length) return;
     const payload = {
       timestamp: new Date().toISOString(),
-      items: items
+      items: restockItems
     };
-
     fetch("/api/restock", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1355,9 +1344,6 @@ async function handleRestockFlow() {
       Swal.fire("❌ 發送失敗", "請確認伺服器狀況", "error");
     });
   }
-
-  // 啟動第一筆新增
-  addRestockItem();
 }
 
 
@@ -1366,187 +1352,164 @@ async function handleActivityFlow() {
   let activityItems = [];
   const response = await fetch('/api/activity-products');
   const activityProducts = await response.json();
-
   const products = Object.values(activityProducts);
   const categories = [...new Set(products.map(p => p.category || '未分類'))];
 
-  const { value: identity } = await Swal.fire({
-    title: '選擇身分別',
-    input: 'select',
-    inputOptions: {
-      校友: '校友',
-      在校生: '在校生',
-      師長: '師長',
-      家長: '家長',
-      其他: '其他'
-    },
-    inputPlaceholder: '請選擇身分別',
-    showCancelButton: true
-  });
-  if (!identity) return;
-
-  async function addItem() {
-    const formHtml = `
-      <select id="category" class="swal2-input">
+  const leftHtml = `
+    <div style="width:60%; float:left; padding-right:3%; box-sizing:border-box; text-align:center">
+      <select id="identity" class="swal2-input" style="width:100%; margin-bottom:10px">
+        <option value="">選擇身分別</option>
+        <option value="校友">校友</option>
+        <option value="在校生">在校生</option>
+        <option value="師長">師長</option>
+        <option value="家長">家長</option>
+        <option value="其他">其他</option>
+      </select>
+      <select id="category" class="swal2-input" style="width:100%; margin-bottom:10px">
         <option value="">選擇分類</option>
         ${categories.map(c => `<option value="${c}">${c}</option>`).join('')}
       </select>
-      <div id="productArea"></div>
-      <div id="styleArea" style="margin-top:10px;"></div>
-      <input type="number" id="qty" class="swal2-input" placeholder="輸入數量" min="1" />
-    `;
+      <div id="productArea" style="display:flex; flex-wrap:wrap; justify-content:center; gap:3px; margin-bottom:10px;"></div>
+      <div id="styleArea" style="margin-bottom:10px"></div>
+      <input type="number" id="qty" class="swal2-input" placeholder="輸入數量" min="1" style="max-width:150px" />
+      <button onclick="addActivityItem()" class="swal2-confirm swal2-styled" style="margin-top:10px; width:100%">➕ 新增商品</button>
+    </div>
+  `;
 
-    await Swal.fire({
-      title: '新增活動商品',
-      html: formHtml,
-      focusConfirm: false,
-      didOpen: () => {
-        const categorySelect = document.getElementById('category');
-        const productArea = document.getElementById('productArea');
-        const styleArea = document.getElementById('styleArea');
+  const rightHtml = `
+    <div style="width:40%; float:right; padding-left:3%; box-sizing:border-box; border-left:1px solid #ccc; height:500px; overflow:auto; text-align:center">
+      <h3>活動預覽</h3>
+      <ul id="activityPreviewList" style="padding-left:1em"></ul>
+      <hr>
+      <strong id="activityPreviewTotal"></strong><br>
+      <button onclick="submitActivityItems()" class="swal2-confirm swal2-styled" style="margin-top:10px; width:100%">✅ 完成送出</button>
+    </div>
+  `;
 
-        categorySelect.addEventListener('change', () => {
-          const selectedCategory = categorySelect.value;
-          const items = products.filter(p => p.category === selectedCategory);
-          productArea.innerHTML = items.map(p => {
-            const total = Object.values(p.styles).reduce((sum, s) => sum + s.center + s.warehouse, 0);
-            const disabled = total === 0 ? 'disabled' : '';
-            const label = total === 0 ? `${p.name}（無庫存）` : p.name;
-            return `<button class="product-btn" data-name="${p.name}" ${disabled}>${label}</button>`;
-          }).join('');
-
-          setTimeout(() => {
-            document.querySelectorAll('.product-btn').forEach(btn => {
-              btn.addEventListener('click', () => {
-                const itemName = btn.dataset.name;
-                const selected = products.find(p => p.name === itemName);
-                styleArea.innerHTML = '';
-
-                const styleOptions = sortSizes(selected.styles).map(size => {
-                  const stock = selected.styles[size];
-                  const total = stock.center + stock.warehouse;
-                  const disabled = total === 0 ? "disabled" : "";
-                  return `<option value="${size}" ${disabled}>${size}${total === 0 ? "（無庫存）" : ""}</option>`;
-                }).join('');
-                styleArea.innerHTML = `<select id="style" class="swal2-input">${styleOptions}</select>`;
-                styleArea.dataset.selected = JSON.stringify(selected);
-              });
-            });
-          }, 0);
-        });
-      },
-      preConfirm: () => {
-        const qty = parseInt(document.getElementById('qty').value);
-        const style = document.getElementById('style')?.value || '';
-        const selected = JSON.parse(document.getElementById('styleArea').dataset.selected || '{}');
-        if (!selected.name || !qty) {
-          Swal.showValidationMessage('請選擇商品與數量');
-          return false;
-        }
-        return {
-          product: selected,
-          style,
-          qty
-        };
-      }
-    }).then(async result => {
-      if (!result.isConfirmed) return;
-      const p = result.value.product;
-      activityItems.push({
-        name: p.name,
-        code: p.code,
-        category: p.category,
-        price: p.price,
-        style: result.value.style,
-        qty: result.value.qty,
-        subtotal: p.price * result.value.qty
-      });
-
-      const more = await Swal.fire({
-        title: '✅ 已新增一筆',
-        text: '是否繼續新增？',
-        showCancelButton: true,
-        confirmButtonText: '繼續新增',
-        cancelButtonText: '完成'
-      });
-
-      if (more.isConfirmed) {
-        addItem();
-      } else {
-        showActivitySummary(activityItems, identity);
-      }
-    });
-  }
-
-  function showActivitySummary(items, identity) {
-    let total = 0;
-    let html = '<ul>';
-    items.forEach(item => {
-      total += item.subtotal;
-      html += `<li>${item.name} ${item.style || ''} x${item.qty} = $${item.subtotal}</li>`;
-    });
-    html += `</ul><hr><strong>總金額：$${total}</strong>`;
-
-    Swal.fire({
-      title: '確認送出活動訂單',
-      html: html,
-      confirmButtonText: '下一步',
-      showCancelButton: true
-    }).then(async result => {
-      if (result.isConfirmed) {
-        askActivityOrderId(items, identity, total);
-      }
-    });
-  }
-
-  function askActivityOrderId(items, identity, total) {
   Swal.fire({
-    title: '輸入單號',
-    input: 'text',
-    inputPlaceholder: '請輸入活動單號',
-    showCancelButton: true,
-    confirmButtonText: '送出',
-    cancelButtonText: '取消',
-    customClass: {
-      input: 'custom-input'
+    title: '活動銷售',
+    html: `<div style="display:flex; max-width:1000px">${leftHtml}${rightHtml}</div>`,
+    showConfirmButton: false,
+    width: '70%',
+    didOpen: () => {
+      setupActivityForm();
     }
-  }).then(result => {
-    if (!result.isConfirmed || !result.value) return;
-    const orderId = result.value;
-
-    const payload = {
-      order_id: orderId,
-      identity,
-      timestamp: new Date().toISOString(),
-      items: items.map(item => ({
-        code: item.code,
-        name: item.name,
-        category: item.category,
-        style: item.style,
-        qty: item.qty,
-        price: item.price
-      }))
-    };
-
-    fetch("/api/activity-sale", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    })
-    .then(res => res.json())
-    .then(data => {
-      Swal.fire("✅ 已完成活動銷售", data.message || "資料已送出", "success");
-      fetchData();
-    })
-    .catch(err => {
-      console.error(err);
-      Swal.fire("❌ 發送失敗", "請檢查網路或伺服器狀況", "error");
-    });
   });
-}
-  addItem(); // 啟動第一筆新增
+
+  window.setupActivityForm = function () {
+    const categorySelect = document.getElementById('category');
+    const productArea = document.getElementById('productArea');
+    const styleArea = document.getElementById('styleArea');
+
+    categorySelect.addEventListener('change', () => {
+      const selectedCategory = categorySelect.value;
+      const items = products.filter(p => p.category === selectedCategory);
+      productArea.innerHTML = items.map(p => {
+        const total = Object.values(p.styles).reduce((sum, s) => sum + s.center + s.warehouse, 0);
+        const disabled = total === 0 ? 'disabled' : '';
+        const label = total === 0 ? `${p.name}（無庫存）` : p.name;
+        return `<button class="product-btn" data-name="${p.name}" ${disabled}>${label}</button>`;
+      }).join('');
+
+      setTimeout(() => {
+        document.querySelectorAll('.product-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const itemName = btn.dataset.name;
+            const selected = products.find(p => p.name === itemName);
+            const styleOptions = sortSizes(selected.styles).map(size => {
+              const stock = selected.styles[size];
+              const total = stock.center + stock.warehouse;
+              const disabled = total === 0 ? 'disabled' : '';
+              return `<option value="${size}" ${disabled}>${size}${total === 0 ? '（無庫存）' : ''}</option>`;
+            }).join('');
+            styleArea.innerHTML = `<select id="style" class="swal2-input">${styleOptions}</select>`;
+            styleArea.dataset.selected = JSON.stringify(selected);
+          });
+        });
+      }, 0);
+    });
+  };
+
+  window.addActivityItem = function () {
+    const identity = document.getElementById('identity').value;
+    const qty = parseInt(document.getElementById('qty').value);
+    const style = document.getElementById('style')?.value || '';
+    const selected = JSON.parse(document.getElementById('styleArea').dataset.selected || '{}');
+    if (!identity || !selected.name || !qty) {
+      Swal.showValidationMessage('請選擇身分別、商品與數量'); return;
+    }
+    activityItems.push({
+      name: selected.name,
+      code: selected.code,
+      category: selected.category,
+      style,
+      qty,
+      price: selected.price,
+      subtotal: selected.price * qty,
+      identity
+    });
+    updateActivityPreview();
+  };
+
+  window.updateActivityPreview = function () {
+    const list = document.getElementById('activityPreviewList');
+    list.innerHTML = '';
+    let total = 0;
+    activityItems.forEach((item, idx) => {
+      total += item.subtotal;
+      const li = document.createElement('li');
+      li.innerHTML = `${item.name} ${item.style || ''} x${item.qty} = $${item.subtotal} <button onclick="removeActivityItem(${idx})">❌</button>`;
+      list.appendChild(li);
+    });
+    document.getElementById('activityPreviewTotal').textContent = `總金額：$${total}`;
+  };
+
+  window.removeActivityItem = function (index) {
+    activityItems.splice(index, 1);
+    updateActivityPreview();
+  };
+
+  window.submitActivityItems = function () {
+    if (!activityItems.length) return;
+    Swal.fire({
+      title: '輸入單號',
+      input: 'text',
+      inputPlaceholder: '請輸入單號',
+      customClass: { input: 'custom-input' },
+      showCancelButton: true,
+      confirmButtonText: '送出',
+      cancelButtonText: '取消'
+    }).then(result => {
+      if (!result.isConfirmed || !result.value) return;
+      const payload = {
+        order_id: result.value,
+        identity: activityItems[0].identity,
+        timestamp: new Date().toISOString(),
+        items: activityItems.map(item => ({
+          code: item.code,
+          name: item.name,
+          category: item.category,
+          style: item.style,
+          qty: item.qty,
+          price: item.price
+        }))
+      };
+      fetch("/api/activity-sale", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      })
+      .then(res => res.json())
+      .then(data => {
+        Swal.fire("✅ 已完成活動銷售", data.message || "資料已送出", "success");
+        fetchData();
+      })
+      .catch(err => {
+        console.error(err);
+        Swal.fire("❌ 發送失敗", "請檢查網路或伺服器狀況", "error");
+      });
+    });
+  };
 }
 
 
@@ -1568,109 +1531,81 @@ async function handleOccupyFlow() {
   if (!selectedMode) return;
   mode = selectedMode;
 
-  async function addItem() {
-    const categories = [...new Set(products.map(p => p.category || '未分類'))];
-
-    const formHtml = `
-      <select id="category" class="swal2-input">
+  const categories = [...new Set(products.map(p => p.category || '未分類'))];
+  const leftHtml = `
+    <div style="width:60%; float:left; padding-right:3%; box-sizing:border-box; text-align:center">
+      <select id="category" class="swal2-input" style="width:100%; margin-bottom:10px">
         <option value="">選擇分類</option>
         ${categories.map(c => `<option value="${c}">${c}</option>`).join('')}
       </select>
-      <div id="productArea"></div>
-      <div id="styleArea" style="margin-top:10px;"></div>
-      <input type="number" id="qty" class="swal2-input" placeholder="輸入數量" min="1" />
-    `;
+      <div id="productArea" style="display:flex; flex-wrap:wrap; justify-content:center; gap:3px; margin-bottom:10px;"></div>
+      <div id="styleArea" style="margin-bottom:10px"></div>
+      <input type="number" id="qty" class="swal2-input" placeholder="輸入數量" min="1" style="max-width: 150px" />
+      <button onclick="addOccupyItem()" class="swal2-confirm swal2-styled" style="margin-top:10px; width:100%">➕ 新增商品</button>
+    </div>
+  `;
 
-    await Swal.fire({
-      title: `新增${mode === "use" ? "佔用" : "歸還"}商品`,
-      html: formHtml,
-      focusConfirm: false,
-      didOpen: () => {
-        const categorySelect = document.getElementById('category');
-        const productArea = document.getElementById('productArea');
-        const styleArea = document.getElementById('styleArea');
+  const rightHtml = `
+    <div style="width:40%; float:right; padding-left:3%; box-sizing:border-box; border-left:1px solid #ccc; height:500px; overflow:auto; text-align:center">
+      <h3>即時預覽</h3>
+      <ul id="occupyPreviewList" style="padding-left:1em"></ul>
+      <hr>
+      <strong id="occupyPreviewTotal"></strong><br>
+      <button onclick="finishOccupyItems()" class="swal2-confirm swal2-styled" style="margin-top:10px; width:100%">✅ 完成送出</button>
+    </div>
+  `;
 
-        categorySelect.addEventListener('change', () => {
-          const selectedCategory = categorySelect.value;
-          const items = products.filter(p => p.category === selectedCategory);
-          productArea.innerHTML = items.map(p => {
-            const total = p.styles
-              ? Object.values(p.styles).reduce((sum, s) => sum + s.warehouse, 0)
-              : (p.warehouse || 0);
-            const disabled = total === 0 ? 'disabled' : '';
-            const label = total === 0 ? `${p.name}（無庫存）` : p.name;
-            return `<button class="product-btn" data-name="${p.name}" ${disabled}>${label}</button>`;
-          }).join('');
+  Swal.fire({
+    title: `佔扣庫存 - ${mode === 'use' ? '佔用' : '歸還'}`,
+    html: `<div style="display:flex; max-width:1000px">${leftHtml}${rightHtml}</div>`,
+    showConfirmButton: false,
+    width: '70%',
+    willOpen: () => Swal.resetValidationMessage(),
+    didOpen: () => setupOccupyForm()
+  });
 
-          setTimeout(() => {
-            document.querySelectorAll('.product-btn').forEach(btn => {
-              btn.addEventListener('click', () => {
-                const itemName = btn.dataset.name;
-                const selected = products.find(p => p.name === itemName);
-                styleArea.innerHTML = '';
-
-                if (selected.styles) {
-                  const styleOptions = sortSizes(selected.styles).map(size => {
-                    const stock = selected.styles[size];
-                    const total = stock.center + stock.warehouse;
-                    const disabled = total === 0 ? "disabled" : "";
-                    return `<option value="${size}" ${disabled}>${size}${total === 0 ? "（無庫存）" : ""}</option>`;
-                  }).join('');
-                  styleArea.innerHTML = `<select id="style" class="swal2-input">${styleOptions}</select>`;
-                } else {
-                  styleArea.innerHTML = `<input type="hidden" id="style" value="">`;
-                }
-
-                styleArea.dataset.selected = JSON.stringify(selected);
-              });
-            });
-          }, 0);
-        });
-      },
-      preConfirm: () => {
-        const qty = parseInt(document.getElementById('qty').value);
-        const style = document.getElementById('style')?.value || '';
-        const selected = JSON.parse(document.getElementById('styleArea').dataset.selected || '{}');
-        if (!selected.name || !qty) {
-          Swal.showValidationMessage('請選擇商品與數量');
-          return false;
-        }
-        return {
-          product: selected,
-          style,
-          qty
-        };
-      }
-    }).then(async result => {
-      if (!result.isConfirmed) return;
-      const p = result.value.product;
-      occupyItems.push({
-        name: p.name,
-        code: p.code,
-        category: p.category,
-        style: result.value.style,
-        qty: result.value.qty
-      });
-
-      const more = await Swal.fire({
-        title: '✅ 已新增一筆',
-        text: '是否繼續新增？',
-        showCancelButton: true,
-        confirmButtonText: '繼續新增',
-        cancelButtonText: '完成'
-      });
-
-      if (more.isConfirmed) {
-        addItem();
-      } else {
-        if (mode === "use") {
-          askOccupyReason(occupyItems);
-        } else {
-          confirmOccupySubmit(occupyItems, "");
-        }
-      }
+  window.addOccupyItem = function () {
+    const qty = parseInt(document.getElementById('qty').value);
+    const style = document.getElementById('style')?.value || '';
+    const selected = JSON.parse(document.getElementById('styleArea').dataset.selected || '{}');
+    if (!selected.name || !qty) {
+      Swal.showValidationMessage('請選擇商品與數量');
+      return;
+    }
+    occupyItems.push({
+      name: selected.name,
+      code: selected.code,
+      category: selected.category,
+      style,
+      qty
     });
-  }
+    updateOccupyPreview();
+  };
+
+  window.updateOccupyPreview = function () {
+    const list = document.getElementById('occupyPreviewList');
+    list.innerHTML = '';
+    occupyItems.forEach((item, idx) => {
+      const li = document.createElement('li');
+      li.innerHTML = `${item.name} ${item.style || ''} x${item.qty} <button onclick="removeOccupyItem(${idx})">❌</button>`;
+      list.appendChild(li);
+    });
+    document.getElementById('occupyPreviewTotal').textContent = `共 ${occupyItems.length} 筆`;
+  };
+
+  window.removeOccupyItem = function (index) {
+    occupyItems.splice(index, 1);
+    updateOccupyPreview();
+  };
+
+  window.finishOccupyItems = function () {
+    if (!occupyItems.length) return;
+    if (mode === 'use') {
+      askOccupyReason(occupyItems);
+    } else {
+      confirmOccupySubmit(occupyItems, "");
+    }
+  };
 
   function askOccupyReason(items) {
     Swal.fire({
@@ -1678,11 +1613,9 @@ async function handleOccupyFlow() {
       input: 'text',
       inputPlaceholder: '例如：活動使用',
       showCancelButton: true,
-      customClass: {
-            input: 'custom-input'
-          },
       confirmButtonText: '預覽送出',
-      cancelButtonText: '取消'
+      cancelButtonText: '取消',
+      customClass: { input: 'custom-input' }
     }).then(result => {
       if (!result.isConfirmed || !result.value) return;
       confirmOccupySubmit(items, result.value);
@@ -1695,7 +1628,6 @@ async function handleOccupyFlow() {
       html += `<li>${item.name} ${item.style || ''} x${item.qty}</li>`;
     });
     html += '</ul>';
-
     Swal.fire({
       title: '確認清單',
       html: html + (mode === "use" ? `<br>用途：${reason}` : ''),
@@ -1732,9 +1664,46 @@ async function handleOccupyFlow() {
     });
   }
 
-  // 開始第一筆
-  addItem();
+  function setupOccupyForm() {
+    const categorySelect = document.getElementById('category');
+    const productArea = document.getElementById('productArea');
+    const styleArea = document.getElementById('styleArea');
+
+    categorySelect.addEventListener('change', () => {
+      const selectedCategory = categorySelect.value;
+      const items = products.filter(p => p.category === selectedCategory);
+      productArea.innerHTML = items.map(p => {
+        const total = p.styles ? Object.values(p.styles).reduce((s, i) => s + i.warehouse, 0) : p.warehouse;
+        const disabled = total === 0 ? 'disabled' : '';
+        const label = total === 0 ? `${p.name}（無庫存）` : p.name;
+        return `<button class="product-btn" data-name="${p.name}" ${disabled}>${label}</button>`;
+      }).join('');
+
+      setTimeout(() => {
+        document.querySelectorAll('.product-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const itemName = btn.dataset.name;
+            const selected = items.find(p => p.name === itemName);
+            styleArea.innerHTML = '';
+            if (selected.styles) {
+              const options = sortSizes(selected.styles).map(size => {
+                const stock = selected.styles[size];
+                const total = stock.warehouse;
+                const disabled = total === 0 ? 'disabled' : '';
+                return `<option value="${size}" ${disabled}>${size}${total === 0 ? '（無庫存）' : ''}</option>`;
+              }).join('');
+              styleArea.innerHTML = `<select id="style" class="swal2-input">${options}</select>`;
+            } else {
+              styleArea.innerHTML = `<input type="hidden" id="style" value="">`;
+            }
+            styleArea.dataset.selected = JSON.stringify(selected);
+          });
+        });
+      }, 0);
+    });
+  }
 }
+
 
 
 //月結
