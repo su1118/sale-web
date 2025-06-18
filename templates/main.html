@@ -9,8 +9,9 @@
   <script src="{{ url_for('static', filename='functions.js') }}"></script>
 </head>
 <body>
-  <h1>銷售系統</h1>
-  <div style="margin-bottom: 10px;">
+  <h1>銷售後台系統</h1>
+  <div style="margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+    <div id="currentUser" style="font-weight: bold;">目前登入者：</div>
     <button onclick="logout()" class="logout-button">登出</button>
   </div>
 
@@ -26,14 +27,16 @@
     <button  onclick="handleReturnFlow()"><ion-icon name="return-up-back-outline"></ion-icon> 退貨</button>
     <button  onclick="handleExchangeFlow()"><ion-icon name="repeat-outline"></ion-icon> 換貨</button>
     <button  onclick="handleGiftFlow()"><ion-icon name="gift-outline"></ion-icon> 贈與</button>
+    <button  onclick="handleGiftFlow()"><ion-icon name="gift-outline"></ion-icon> 訂單</button>
     <button  onclick="handleActivityFlow()"><ion-icon name="pricetags-outline"></ion-icon> 活動</button>
   </div>
   <div class="button-group">
     <button  onclick="handleWorkerFlow()"><ion-icon name="people-outline"></ion-icon> 工用</button>
     <button  onclick="handleTransferFlow()"><ion-icon name="return-up-forward-outline"></ion-icon> 調貨</button>
     <button  onclick="handleRestockFlow()"><ion-icon name="download-outline"></ion-icon> 補貨</button>
-    <button  onclick="handleOccupyFlow()"><ion-icon name="sync-outline"></ion-icon> 暫扣庫存</button>
-    <button  onclick="openDownloadModal()"><ion-icon name="reader-outline"></ion-icon> 月結</button>
+    <button  onclick="handleOccupyFlow()"><ion-icon name="sync-outline"></ion-icon> 暫扣</button>
+    <button  onclick="startAddProduct()"><ion-icon name="gift-outline"></ion-icon> 新增</button>
+    <button  onclick="openDownloadModal()"><ion-icon name="reader-outline"></ion-icon> 紀錄</button>
   </div>
 
   <div id="resultArea"></div>
@@ -50,6 +53,18 @@
     fetch("/main").then(res => {
       if (res.status === 401) {
         window.location.href = "/";
+      }
+    });
+
+    //顯示使用者
+    fetch("/api/current-user")
+    .then(res => res.json())
+    .then(data => {
+      const currentUserDiv = document.getElementById("currentUser");
+      if (data.name) {
+        currentUserDiv.textContent = `目前登入者：${data.name}`;
+      } else {
+        currentUserDiv.textContent = "未登入";
       }
     });
   </script>
