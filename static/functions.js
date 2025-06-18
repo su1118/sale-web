@@ -12,7 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
   fetchData();
 });
 
-// ✅ 登入狀態檢查
+// 登入狀態檢查
   fetch("/main").then(res => {
     if (res.status === 401) {
       window.location.href = "/";
@@ -85,7 +85,7 @@ function filterProducts() {
 
 
 const identityOptions = {
-  校友: '校友', 在校生: '在校生', 師長: '師長', 家長: '家長', 其他: '其他'
+  校友會員: '校友會員', 在校生: '在校生', 師長: '師長', 家長: '家長', 其他: '其他'
 };
 const channelOptions = {
   店面: '店面', 網路: '網路', 校內活動: '校內活動'
@@ -190,7 +190,7 @@ function addSaleItem() {
   if (!identity || !channel || !selected.name || !qty) {
     Swal.showValidationMessage('請填寫所有欄位'); return;
   }
-  const discount = ['校友', '在校生', '師長'].includes(identity) ? 0.9 : 1.0;
+  const discount = ['校友會員', '在校生', '師長'].includes(identity) ? 0.9 : 1.0;
   saleItems.push({
     name: selected.name,
     code: selected.code,
@@ -372,7 +372,7 @@ function addReturnItem() {
     return;
   }
 
-  const discount = ['校友', '在校生', '師長'].includes(identity) ? 0.9 : 1.0;
+  const discount = ['校友會員', '在校生', '師長'].includes(identity) ? 0.9 : 1.0;
   saleItems.push({
     name: selected.name,
     code: selected.code,
@@ -522,7 +522,7 @@ function addExchangeOldItem() {
     return;
   }
 
-  const discount = ['校友', '在校生', '師長'].includes(identity) ? 0.9 : 1.0;
+  const discount = ['校友會員', '在校生', '師長'].includes(identity) ? 0.9 : 1.0;
 
   oldExchangeItems.push({
     name: selected.name,
@@ -586,7 +586,7 @@ function addExchangeNewItem() {
     return;
   }
 
-  const discount = ['校友', '在校生', '師長'].includes(exchangeIdentity) ? 0.9 : 1.0;
+  const discount = ['校友會員', '在校生', '師長'].includes(exchangeIdentity) ? 0.9 : 1.0;
 
   newExchangeItems.push({
     name: selected.name,
@@ -1359,7 +1359,7 @@ async function handleActivityFlow() {
     <div style="width:60%; float:left; padding-right:3%; box-sizing:border-box; text-align:center">
       <select id="identity" class="swal2-input" style="width:100%; margin-bottom:10px">
         <option value="">選擇身分別</option>
-        <option value="校友">校友</option>
+        <option value="校友會員">校友會員</option>
         <option value="在校生">在校生</option>
         <option value="師長">師長</option>
         <option value="家長">家長</option>
@@ -1748,4 +1748,79 @@ function openDownloadModal() {
       Swal.fire("❌ 發送失敗", "請檢查網路", "error");
     });
   });
+}
+
+
+
+//新增
+async function startAddProduct() {
+  const { value: password } = await Swal.fire({
+    title: '請輸入管理密碼',
+    input: 'password',
+    inputPlaceholder: '輸入密碼',
+    showCancelButton: true
+  });
+  if (password !== '20050302') {
+    Swal.fire("❌ 密碼錯誤", "請再試一次", "error");
+    return;
+  }
+
+  const categories = ['衣物', '背包', '杯具', '帽子', '配件', '徽章磁鐵'];
+  const styleList = ['單一款式','S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL'];
+
+  const formHtml = `
+    <input id="newName" class="swal2-input" placeholder="商品名稱">
+    <input id="newPrice" type="number" class="swal2-input" placeholder="售價">
+    <select id="newCategory" class="swal2-input">
+      <option value="">選擇分類</option>
+      ${categories.map(c => `<option value="${c}">${c}</option>`).join('')}
+    </select>
+    <div id="styleInputs" style="text-align:left; max-height:200px; overflow:auto;">
+      ${styleList.map(size => `
+        <label>${size} 中心 <input type="number" id="center_${size}" style="width:50px"></label>
+        <label> 倉庫 <input type="number" id="warehouse_${size}" style="width:50px; margin-right:10px"></label><br>
+      `).join('')}
+    </div>
+  `;
+
+  const { isConfirmed } = await Swal.fire({
+    title: '新增商品',
+    html: formHtml,
+    showCancelButton: true,
+    confirmButtonText: '送出'
+  });
+
+  if (!isConfirmed) return;
+
+  const name = document.getElementById('newName').value.trim();
+  const category = document.getElementById('newCategory').value;
+  const price = parseInt(document.getElementById('newPrice').value);
+
+  if (!name || !category || isNaN(price)) {
+    Swal.fire("❗ 資料不完整", "請填寫商品名稱、分類與價格", "warning");
+    return;
+  }
+
+  const styles = {};
+  styleList.forEach(size => {
+    const c = parseInt(document.getElementById(`center_${size}`).value) || 0;
+    const w = parseInt(document.getElementById(`warehouse_${size}`).value) || 0;
+    if (c > 0 || w > 0) styles[size] = { center: c, warehouse: w };
+  });
+
+  const payload = { name, category, price, styles };
+  fetch("/api/add-product", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === "success") {
+        Swal.fire("✅ 已新增", data.message, "success");
+        fetchData(); // 刷新畫面
+      } else {
+        Swal.fire("❌ 錯誤", data.message, "error");
+      }
+    });
 }
