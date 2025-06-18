@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
@@ -7,21 +6,31 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-  <h2>請輸入三位數代碼登入</h2>
-  <input type="text" id="staffCode" placeholder="輸入人員代碼：001/陳家平，002/蘇昱誠" maxlength="3" />
-  <button onclick="login()">登入</button>
+  <div style="display:flex; justify-content:center; align-items:center; height:100vh;">
+    <div style="padding:40px; background:#f4f4f4; border-radius:20px; border:2px solid #6aa1ff; text-align:center;">
+      <h1>會員登入</h1>
+      <div style="margin-bottom:20px;">
+        <input type="text" id="username" placeholder="輸入帳號" style="width:100%; padding:8px;" />
+      </div>
+      <div style="margin-bottom:20px;">
+        <input type="password" id="password" placeholder="輸入密碼" style="width:100%; padding:8px;" />
+      </div>
+      <button onclick="login()" style="padding:5px 10px; background:#4285f4; color:white; border:none; border-radius:6px;">登入</button>
+    </div>
+  </div>
 
   <script>
     async function login() {
-      const code = document.getElementById('staffCode').value.trim();
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
       const res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ staff_code: code })
+        body: JSON.stringify({ username, password })
       });
       const result = await res.json();
       if (result.status === 'success') {
-        localStorage.setItem('staff_code', code);
+        localStorage.setItem('username', username);
         window.location.href = '/main';
       } else {
         alert(result.message || '登入失敗');
