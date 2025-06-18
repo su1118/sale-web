@@ -24,16 +24,37 @@ def log_action(text):
     with open(LOG_FILE, "a", encoding="utf-8") as f:
         f.write(f"[{timestamp}] {text}\n")
 
+
+    
 @app.route("/api/login", methods=["POST"])
 def api_login():
     data = request.json
-    code = data.get("staff_code")
-    staff = load_json(STAFF_FILE)
-    if code in staff:
-        session["staff_code"] = code
-        session["staff_name"] = staff[code]["name"]
-        return jsonify({ "status": "success", "name": staff[code]["name"] })
-    return jsonify({ "status": "error", "message": "無效的人員代碼" })
+    username = data.get("username")
+    password = data.get("password")
+
+    with open("staff.json", "r", encoding="utf-8") as f:
+        staff = json.load(f)
+
+    if username in staff and staff[username]["password"] == password:
+        session["user"] = staff[username]["name"]  # 可以保留
+        session["staff_code"] = username           # 新增
+        session["staff_name"] = staff[username]["name"]  # 新增
+        return jsonify({ "status": "success" })
+    else:
+        return jsonify({ "status": "fail", "message": "帳號或密碼錯誤" })
+
+    
+@app.route("/api/current-user")
+def current_user():
+    if "staff_code" in session:
+        return jsonify({
+            "username": session["staff_code"],
+            "name": session.get("staff_name")
+        })
+    return jsonify({"username": None}), 401
+
+
+
 
 @app.route("/api/products")
 def api_products():
@@ -595,6 +616,35 @@ def api_monthly_summary():
         return jsonify({ "status": "error", "message": f"後端錯誤：{str(e)}" })
 
 
+@app.route("/api/add-product", methods=["POST"])
+def add_product():
+    try:
+        data = request.json
+        name = data.get("name")
+        category = data.get("category")
+        price = data.get("price")
+        styles = data.get("styles")
+
+        if not name or not category or price is None:
+            return jsonify({ "status": "fail", "message": "資料不完整" })
+
+        inventory = load_json(INVENTORY_FILE)
+        if name in inventory:
+            return jsonify({ "status": "fail", "message": "商品已存在" })
+
+        inventory[name] = {
+            "name": name,
+            "category": category,
+            "price": price,
+            "styles": styles if styles else None
+        }
+
+        save_json(INVENTORY_FILE, inventory)
+        return jsonify({ "status": "success", "message": f"成功新增 {name}" })
+    except Exception as e:
+        return jsonify({ "status": "fail", "message": f"後端錯誤：{str(e)}" })
+
+
 
 @app.route("/download/<filename>")
 def download_file(filename):
@@ -631,10 +681,6 @@ def api_logout():
     session.pop("staff_name", None)
     return jsonify({ "status": "success", "message": "已登出" })
 
-#if __name__ == "__main__":
-#    app.run(debug=True, port=5050)
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))  # 從 Render 提供的 PORT 環境變數取得 port
     app.run(host="0.0.0.0", port=port)
-
-
